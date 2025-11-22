@@ -6,6 +6,11 @@
     <title>Lumina Press</title>
     <!-- Dynamic SVG Favicon (Lightbulb) -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23f59e0b'%3E%3Cpath d='M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z'/%3E%3C/svg%3E" />
+    <!-- Placeholders for PWA and Mobile Icons -->
+    <link rel="manifest" id="dynamic-manifest" />
+    <link rel="apple-touch-icon" id="dynamic-apple-icon" />
+    <meta name="theme-color" content="#f59e0b" />
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -70,9 +75,21 @@
         scrollbar-color: var(--scrollbar-thumb-color, #888) var(--scrollbar-track-color, #f1f1f1);
       }
     </style>
-  </head>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "uuid": "https://aistudiocdn.com/uuid@^13.0.0",
+    "react-icons/": "https://aistudiocdn.com/react-icons@^5.5.0/",
+    "react-icons": "https://aistudiocdn.com/react-icons@^5.5.0"
+  }
+}
+</script>
+</head>
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>
