@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useMemo, useEffect } from 'react';
 import { themes, Theme, luminaPressTheme } from '../themes';
 
@@ -23,9 +24,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     document.title = currentTheme.appName;
 
     // 2. Helper function to convert SVG Data URI to PNG Data URI using Canvas
-    // This allows us to generate proper PWA icons on the fly without static image files.
-    const generatePngIcon = (svgDataUri: string, size: number): Promise<string> => {
+    // Improved to create a proper "App Icon" look: Theme Color Background + White Logo + Padding
+    const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: string): Promise<string> => {
       return new Promise((resolve) => {
+        // Attempt to create a white version of the logo for better contrast against the colored background.
+        // Replaces the specific hex color encoded in the SVG string with white (#ffffff).
+        const whiteSvgUri = svgDataUri.replace(/fill='%23[a-fA-F0-9]{6}'/g, "fill='%23ffffff'");
+
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
@@ -33,31 +38,50 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           canvas.height = size;
           const ctx = canvas.getContext('2d');
           if (ctx) {
-             ctx.drawImage(img, 0, 0, size, size);
+             // A. Draw Background (Theme Color)
+             ctx.fillStyle = backgroundColor;
+             ctx.fillRect(0, 0, size, size);
+
+             // B. Draw Icon with Padding
+             // Use 20% padding on each side to ensure logo is centered and safe from rounded corners
+             const padding = size * 0.20; 
+             const iconSize = size - (padding * 2);
+             
+             // C. High Quality Settings
+             ctx.imageSmoothingEnabled = true;
+             ctx.imageSmoothingQuality = 'high';
+             
+             // Draw the white logo centered
+             ctx.drawImage(img, padding, padding, iconSize, iconSize);
+             
              resolve(canvas.toDataURL('image/png'));
           } else {
-             // Fallback to SVG if canvas fails (unlikely in modern browsers)
+             // Fallback if canvas context fails
              resolve(svgDataUri);
           }
         };
-        // If image fails to load, resolve with original
+        // If image fails to load (e.g., bad URI), resolve with original
         img.onerror = () => resolve(svgDataUri);
-        img.src = svgDataUri;
+        img.src = whiteSvgUri;
       });
     };
 
     const updateIconsAndManifest = async () => {
-        // --- A. Update Browser Tab Favicon (SVG) ---
+        const themeColor = currentTheme.colors.primary['500'];
+
+        // --- A. Update Browser Tab Favicon (Original Colored SVG) ---
         let iconLink = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
         if (!iconLink) {
              iconLink = document.createElement('link');
              iconLink.rel = 'icon';
              document.head.appendChild(iconLink);
         }
+        // Keep browser tab icon as the original colored SVG (no background)
         iconLink.href = currentTheme.favicon;
 
-        // --- B. Update iOS Home Screen Icon (PNG) ---
-        const appleIconPng = await generatePngIcon(currentTheme.favicon, 180); // 180x180 for iOS
+        // --- B. Update iOS Home Screen Icon (PNG with Background) ---
+        // 180x180 is standard for iPhone
+        const appleIconPng = await generatePngIcon(currentTheme.favicon, 180, themeColor);
         let appleLink = document.querySelector("link[rel='apple-touch-icon']") as HTMLLinkElement;
         if (!appleLink) {
             appleLink = document.createElement('link');
@@ -73,24 +97,34 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             metaThemeColor.name = 'theme-color';
             document.head.appendChild(metaThemeColor);
         }
-        metaThemeColor.content = currentTheme.colors.primary['500'];
+        metaThemeColor.content = themeColor;
 
         // --- D. Generate & Update Web App Manifest (JSON) ---
-        // This controls the "Install App" name, icons, and colors.
-        const icon192 = await generatePngIcon(currentTheme.favicon, 192);
-        const icon512 = await generatePngIcon(currentTheme.favicon, 512);
+        // We generate icon sizes for Android: 192x192 and 512x512
+        const icon192 = await generatePngIcon(currentTheme.favicon, 192, themeColor);
+        const icon512 = await generatePngIcon(currentTheme.favicon, 512, themeColor);
 
         const manifest = {
             name: currentTheme.appName,
             short_name: currentTheme.appName,
             start_url: ".",
             display: "standalone",
-            background_color: "#ffffff",
-            theme_color: currentTheme.colors.primary['500'],
+            background_color: themeColor, // Splash screen background matches theme
+            theme_color: themeColor,
             description: `Reading experience for ${currentTheme.appName}`,
             icons: [
-                { src: icon192, sizes: "192x192", type: "image/png" },
-                { src: icon512, sizes: "512x512", type: "image/png" }
+                { 
+                    src: icon192, 
+                    sizes: "192x192", 
+                    type: "image/png",
+                    purpose: "any maskable" // 'maskable' ensures it fills the circle/squircle on Android
+                },
+                { 
+                    src: icon512, 
+                    sizes: "512x512", 
+                    type: "image/png",
+                    purpose: "any maskable"
+                }
             ]
         };
 
@@ -103,6 +137,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             manifestLink = document.createElement('link');
             manifestLink.rel = 'manifest';
             document.head.appendChild(manifestLink);
+        }
+        // Revoke old URL to avoid memory leaks if frequent changes occur (optional optimization)
+        if (manifestLink.href && manifestLink.href.startsWith('blob:')) {
+            URL.revokeObjectURL(manifestLink.href);
         }
         manifestLink.href = manifestURL;
     };
