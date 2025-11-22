@@ -25,7 +25,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         <div className="text-center mb-8">
           <Logo className={`mx-auto mb-4 w-16 h-16 text-primary-600`} />
           <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 dark:text-white tracking-tight">
-            {mode === 'login' ? 'Welcome Back' : 'Create an Account'}
+            {mode === 'login' ? theme.appName : 'Create an Account'}
           </h1>
           <p className="mt-4 text-lg text-gray-600 dark:text-gray-300">
              {mode === 'login' ? 'Access your personal library.' : 'Begin your reading journey with us.'}
