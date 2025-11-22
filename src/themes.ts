@@ -1,11 +1,10 @@
 import React from 'react';
 import { FaLightbulb, FaFeatherAlt, FaSun } from 'react-icons/fa';
-import { IconType } from 'react-icons';
 
 export interface Theme {
   key: string;
   appName: string;
-  logo: IconType;
+  logo: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
   colors: {
     primary: {
       '50': string; '100': string; '200': string; '300': string; '400': string; '500': string; '600': string; '700': string; '800': string; '900': string; '950': string;
