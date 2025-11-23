@@ -25,44 +25,61 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // 2. Helper function to convert SVG Data URI to PNG Data URI using Canvas
     // Generates a high-quality, centered, white icon on a theme-colored background
-    // Uses Canvas Compositing for perfect coloring and ViewBox parsing for perfect proportions.
+    // Uses DOMParser for robust SVG handling and Canvas Compositing for perfect coloring.
     const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: string): Promise<string> => {
       return new Promise((resolve) => {
         try {
-            // 1. Extract and Decode SVG Content
-            // Handle both base64 and URI encoded data URIs
-            let svgContent = "";
-            if (svgDataUri.includes("base64,")) {
-                 svgContent = atob(svgDataUri.split("base64,")[1]);
-            } else {
-                 svgContent = decodeURIComponent(svgDataUri.split(",")[1]);
+            // 1. Decode SVG Content
+            const isBase64 = svgDataUri.includes("base64,");
+            const dataContent = isBase64 ? svgDataUri.split("base64,")[1] : svgDataUri.split(",")[1];
+            // Decode URI component regardless, handle base64 manually
+            const svgString = isBase64 ? atob(dataContent) : decodeURIComponent(dataContent);
+
+            // 2. Parse SVG to DOM to correctly get dimensions
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(svgString, "image/svg+xml");
+            const svgElement = doc.documentElement;
+            
+            if (svgElement.nodeName !== 'svg') {
+                console.warn("Parsed content is not an SVG");
+                resolve(svgDataUri);
+                return;
             }
 
-            // 2. Parse ViewBox to determine Aspect Ratio
-            // Default to square 512x512 if parsing fails
+            // 3. Determine native Dimensions from viewBox or width/height attributes
+            // Default to 512 if nothing is found
             let width = 512;
             let height = 512;
-            const viewBoxMatch = svgContent.match(/viewBox=['"]\s*([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s*['"]/);
             
-            if (viewBoxMatch) {
-                width = parseFloat(viewBoxMatch[3]);
-                height = parseFloat(viewBoxMatch[4]);
+            if (svgElement.hasAttribute("viewBox")) {
+                const vb = svgElement.getAttribute("viewBox")!.split(/[\s,]+/).filter(Boolean);
+                if (vb.length === 4) {
+                    width = parseFloat(vb[2]);
+                    height = parseFloat(vb[3]);
+                }
+            } else {
+                 const w = svgElement.getAttribute("width");
+                 const h = svgElement.getAttribute("height");
+                 if (w) width = parseFloat(w);
+                 if (h) height = parseFloat(h);
             }
-            
-            // 3. Inject explicit width and height attributes
-            // CRITICAL FIX: Browsers often default SVGs without dimensions to 300x150px.
-            // This causes severe distortion when drawn to a square canvas. 
-            // We strictly enforce dimensions matching the viewBox to preserve aspect ratio.
-            if (!svgContent.includes("width=")) {
-                svgContent = svgContent.replace("<svg", `<svg width="${width}" height="${height}"`);
-            }
-            
-            // 4. Prepare Image Source (Base64 for reliable loading)
-            const base64Svg = btoa(svgContent);
-            const finalDataUri = `data:image/svg+xml;base64,${base64Svg}`;
-            
+
+            // 4. Inject explicit width/height to ensure browser rasterizes at high resolution
+            // We set the SVG's intrinsic size to match its coordinate system (viewBox)
+            // This prevents the browser from defaulting to small sizes (like 300x150) which causes blur.
+            svgElement.setAttribute("width", width.toString());
+            svgElement.setAttribute("height", height.toString());
+
+            // 5. Serialize back to Data URI
+            const serializer = new XMLSerializer();
+            const newSvgString = serializer.serializeToString(svgElement);
+            // Always use base64 for the Image src to avoid encoding issues with complex SVGs
+            const base64Svg = btoa(newSvgString);
+            const finalSrc = `data:image/svg+xml;base64,${base64Svg}`;
+
             const img = new Image();
             img.crossOrigin = "anonymous";
+            
             img.onload = () => {
                 const canvas = document.createElement('canvas');
                 canvas.width = size;
@@ -78,66 +95,68 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 ctx.fillStyle = backgroundColor;
                 ctx.fillRect(0, 0, size, size);
 
-                // B. Calculate Dimensions & Position
-                // Use 50% of total size for the icon itself.
-                // This provides ample padding (safe zone) for rounded icon masks (squircles).
-                const paddingRatio = 0.5; 
-                const maxIconSize = size * paddingRatio;
+                // B. Calculate Sizing (60% of container is a good aesthetic standard)
+                const iconRatio = 0.60; 
+                const maxDimension = size * iconRatio;
                 
+                let drawW, drawH;
                 const aspectRatio = width / height;
-                let renderWidth, renderHeight;
 
                 if (aspectRatio >= 1) {
                     // Wider than tall
-                    renderWidth = maxIconSize;
-                    renderHeight = maxIconSize / aspectRatio;
+                    drawW = maxDimension;
+                    drawH = maxDimension / aspectRatio;
                 } else {
                     // Taller than wide
-                    renderHeight = maxIconSize;
-                    renderWidth = maxIconSize * aspectRatio;
+                    drawH = maxDimension;
+                    drawW = maxDimension * aspectRatio;
                 }
 
-                // Center the icon with integer coordinates for sharpness
-                const x = (size - renderWidth) / 2;
-                const y = (size - renderHeight) / 2;
+                // Center coordinates
+                const x = (size - drawW) / 2;
+                const y = (size - drawH) / 2;
 
-                // C. Tinting Logic (Source-In Composite)
-                const offCanvas = document.createElement('canvas');
-                offCanvas.width = size;
-                offCanvas.height = size;
-                const offCtx = offCanvas.getContext('2d');
-                
-                if (offCtx) {
-                    offCtx.drawImage(img, x, y, renderWidth, renderHeight);
+                // C. Draw White Icon with Shadow (using Masking/Compositing)
+                // We create a temporary canvas to draw the SVG, then fill it with white (source-in)
+                const maskCanvas = document.createElement('canvas');
+                maskCanvas.width = size;
+                maskCanvas.height = size;
+                const maskCtx = maskCanvas.getContext('2d');
+
+                if (maskCtx) {
+                    // 1. Draw the image (shape)
+                    maskCtx.drawImage(img, x, y, drawW, drawH);
                     
-                    // Fill with white only where the image exists (Silhouetting)
-                    offCtx.globalCompositeOperation = 'source-in';
-                    offCtx.fillStyle = '#ffffff';
-                    offCtx.fillRect(0, 0, size, size);
+                    // 2. Change composite mode to only keep pixels where the image is
+                    maskCtx.globalCompositeOperation = 'source-in';
                     
-                    // D. Add Shadow and Draw to Main Canvas
+                    // 3. Fill with white -> effectively tints the shape white
+                    maskCtx.fillStyle = '#ffffff';
+                    maskCtx.fillRect(0, 0, size, size);
+
+                    // 4. Draw shadow on main canvas
                     ctx.save();
-                    // Subtle shadow for depth
-                    ctx.shadowColor = "rgba(0, 0, 0, 0.2)"; 
-                    ctx.shadowBlur = size * 0.04;
+                    ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
+                    ctx.shadowBlur = size * 0.05;
                     ctx.shadowOffsetY = size * 0.02;
                     
-                    ctx.drawImage(offCanvas, 0, 0);
+                    // 5. Draw the white icon onto the main canvas
+                    ctx.drawImage(maskCanvas, 0, 0);
                     ctx.restore();
                 } else {
                     // Fallback if offscreen canvas fails
-                    ctx.drawImage(img, x, y, renderWidth, renderHeight);
+                    ctx.drawImage(img, x, y, drawW, drawH);
                 }
 
                 resolve(canvas.toDataURL('image/png'));
             };
 
-            img.onerror = () => {
-                console.warn("Failed to load SVG for icon generation");
-                resolve(svgDataUri);
+            img.onerror = (e) => {
+                console.error("Icon generation image load failed:", e);
+                resolve(svgDataUri); // Fallback to original
             };
 
-            img.src = finalDataUri;
+            img.src = finalSrc;
 
         } catch (error) {
             console.error("Icon generation failed:", error);
