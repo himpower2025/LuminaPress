@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useMemo, useEffect } from 'react';
 import { themes, Theme, luminaPressTheme } from '../themes';
 
@@ -28,28 +29,40 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: string): Promise<string> => {
       return new Promise((resolve) => {
         try {
-            // Helper to get aspect ratio from SVG string directly (safest for SVGs without width/height)
-            const getSvgAspectRatio = (uri: string): number => {
-                try {
-                    const decoded = decodeURIComponent(uri);
-                    const viewBoxMatch = decoded.match(/viewBox=['"]\s*([\d\.-]+)\s+([\d\.-]+)\s+([\d\.-]+)\s+([\d\.-]+)\s*['"]/);
-                    if (viewBoxMatch && viewBoxMatch.length >= 5) {
-                        const w = parseFloat(viewBoxMatch[3]);
-                        const h = parseFloat(viewBoxMatch[4]);
-                        if (w > 0 && h > 0) return w / h;
-                    }
-                } catch (e) {
-                    console.warn("Failed to parse viewBox", e);
-                }
-                return 1; // Default to square if parsing fails
-            };
+            // 1. Extract and Decode SVG Content
+            // Handle both base64 and URI encoded data URIs
+            let svgContent = "";
+            if (svgDataUri.includes("base64,")) {
+                 svgContent = atob(svgDataUri.split("base64,")[1]);
+            } else {
+                 svgContent = decodeURIComponent(svgDataUri.split(",")[1]);
+            }
 
-            const aspectRatio = getSvgAspectRatio(svgDataUri);
-
+            // 2. Parse ViewBox to determine Aspect Ratio
+            // Default to square 512x512 if parsing fails
+            let width = 512;
+            let height = 512;
+            const viewBoxMatch = svgContent.match(/viewBox=['"]\s*([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s*['"]/);
+            
+            if (viewBoxMatch) {
+                width = parseFloat(viewBoxMatch[3]);
+                height = parseFloat(viewBoxMatch[4]);
+            }
+            
+            // 3. Inject explicit width and height attributes
+            // CRITICAL FIX: Browsers often default SVGs without dimensions to 300x150px.
+            // This causes severe distortion when drawn to a square canvas. 
+            // We strictly enforce dimensions matching the viewBox to preserve aspect ratio.
+            if (!svgContent.includes("width=")) {
+                svgContent = svgContent.replace("<svg", `<svg width="${width}" height="${height}"`);
+            }
+            
+            // 4. Prepare Image Source (Base64 for reliable loading)
+            const base64Svg = btoa(svgContent);
+            const finalDataUri = `data:image/svg+xml;base64,${base64Svg}`;
+            
             const img = new Image();
             img.crossOrigin = "anonymous";
-            img.src = svgDataUri;
-
             img.onload = () => {
                 const canvas = document.createElement('canvas');
                 canvas.width = size;
@@ -65,68 +78,69 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 ctx.fillStyle = backgroundColor;
                 ctx.fillRect(0, 0, size, size);
 
-                // B. Calculate Sizing & Positioning
-                // Use 60% of the container for the icon to ensure good visibility and padding
-                const targetMaxDimension = size * 0.60;
+                // B. Calculate Dimensions & Position
+                // Use 50% of total size for the icon itself.
+                // This provides ample padding (safe zone) for rounded icon masks (squircles).
+                const paddingRatio = 0.5; 
+                const maxIconSize = size * paddingRatio;
                 
+                const aspectRatio = width / height;
                 let renderWidth, renderHeight;
 
-                if (aspectRatio > 1) {
+                if (aspectRatio >= 1) {
                     // Wider than tall
-                    renderWidth = targetMaxDimension;
-                    renderHeight = targetMaxDimension / aspectRatio;
+                    renderWidth = maxIconSize;
+                    renderHeight = maxIconSize / aspectRatio;
                 } else {
-                    // Taller than wide or square
-                    renderHeight = targetMaxDimension;
-                    renderWidth = targetMaxDimension * aspectRatio;
+                    // Taller than wide
+                    renderHeight = maxIconSize;
+                    renderWidth = maxIconSize * aspectRatio;
                 }
 
-                // Math.floor ensures integer coordinates for sharp rendering
-                const x = Math.floor((size - renderWidth) / 2);
-                const y = Math.floor((size - renderHeight) / 2);
+                // Center the icon with integer coordinates for sharpness
+                const x = (size - renderWidth) / 2;
+                const y = (size - renderHeight) / 2;
 
-                // C. Create Offscreen Canvas for White Tinting
-                // This method guarantees the icon becomes pure white regardless of its original colors
+                // C. Tinting Logic (Source-In Composite)
                 const offCanvas = document.createElement('canvas');
                 offCanvas.width = size;
                 offCanvas.height = size;
                 const offCtx = offCanvas.getContext('2d');
-
+                
                 if (offCtx) {
-                    // 1. Draw the image centered
                     offCtx.drawImage(img, x, y, renderWidth, renderHeight);
                     
-                    // 2. Composite Mode 'source-in' keeps the shape but replaces the color
+                    // Fill with white only where the image exists (Silhouetting)
                     offCtx.globalCompositeOperation = 'source-in';
                     offCtx.fillStyle = '#ffffff';
                     offCtx.fillRect(0, 0, size, size);
-
-                    // D. Draw Shadow & Final Icon on Main Canvas
-                    ctx.save();
-                    // Soft, subtle shadow for depth
-                    ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
-                    ctx.shadowBlur = size * 0.05;
-                    ctx.shadowOffsetY = size * 0.02;
-                    ctx.shadowOffsetX = 0;
                     
-                    // Draw the white-tinted icon
+                    // D. Add Shadow and Draw to Main Canvas
+                    ctx.save();
+                    // Subtle shadow for depth
+                    ctx.shadowColor = "rgba(0, 0, 0, 0.2)"; 
+                    ctx.shadowBlur = size * 0.04;
+                    ctx.shadowOffsetY = size * 0.02;
+                    
                     ctx.drawImage(offCanvas, 0, 0);
                     ctx.restore();
                 } else {
-                    // Fallback
+                    // Fallback if offscreen canvas fails
                     ctx.drawImage(img, x, y, renderWidth, renderHeight);
                 }
 
                 resolve(canvas.toDataURL('image/png'));
             };
 
-            img.onerror = (e) => {
-                console.warn("Error loading SVG for icon generation:", e);
+            img.onerror = () => {
+                console.warn("Failed to load SVG for icon generation");
                 resolve(svgDataUri);
             };
 
-        } catch (e) {
-            console.error("Error generating PNG icon:", e);
+            img.src = finalDataUri;
+
+        } catch (error) {
+            console.error("Icon generation failed:", error);
             resolve(svgDataUri);
         }
       });
