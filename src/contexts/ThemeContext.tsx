@@ -24,85 +24,106 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // 2. Helper function to convert SVG Data URI to PNG Data URI using Canvas
     // Generates a high-quality, centered, white icon on a theme-colored background
+    // Uses Canvas Compositing for perfect coloring and ViewBox parsing for perfect proportions.
     const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: string): Promise<string> => {
       return new Promise((resolve) => {
         try {
-            // Decode the URI component to handle the SVG string directly
-            const rawSvgMatch = svgDataUri.match(/,(.+)/);
-            if (!rawSvgMatch) {
-                resolve(svgDataUri);
-                return;
-            }
-            const svgContent = decodeURIComponent(rawSvgMatch[1]);
+            // Helper to get aspect ratio from SVG string directly (safest for SVGs without width/height)
+            const getSvgAspectRatio = (uri: string): number => {
+                try {
+                    const decoded = decodeURIComponent(uri);
+                    const viewBoxMatch = decoded.match(/viewBox=['"]\s*([\d\.-]+)\s+([\d\.-]+)\s+([\d\.-]+)\s+([\d\.-]+)\s*['"]/);
+                    if (viewBoxMatch && viewBoxMatch.length >= 5) {
+                        const w = parseFloat(viewBoxMatch[3]);
+                        const h = parseFloat(viewBoxMatch[4]);
+                        if (w > 0 && h > 0) return w / h;
+                    }
+                } catch (e) {
+                    console.warn("Failed to parse viewBox", e);
+                }
+                return 1; // Default to square if parsing fails
+            };
 
-            // 1. Force White Color
-            // Replace any fill color with white (#ffffff) to ensure high contrast
-            let modifiedSvg = svgContent.replace(/fill=['"](%23|#)[a-fA-F0-9]{6}['"]/gi, 'fill="#ffffff"');
-            
-            // Handle cases where fill might be on a style attribute or missing
-            if (!modifiedSvg.includes('fill=')) {
-                modifiedSvg = modifiedSvg.replace('<svg', '<svg fill="#ffffff"');
-            }
-
-            // 2. Enforce High-Res Rasterization & Aesthetics
-            // Use 50% of container size for ample whitespace (Apple/Google style)
-            // Use Math.floor to prevent sub-pixel rendering (blurry edges)
-            const iconSize = Math.floor(size * 0.50);
-            const padding = Math.floor((size - iconSize) / 2);
-
-            // Inject explicit width and height into the SVG tag. 
-            // This is critical: without it, the browser might render the SVG at a small default size 
-            // and then scale it up, causing blurriness. Setting it here ensures crisp vectors.
-            if (modifiedSvg.includes('width=')) {
-                modifiedSvg = modifiedSvg.replace(/width=['"][^'"]*['"]/, `width="${iconSize}"`);
-            } else {
-                modifiedSvg = modifiedSvg.replace('<svg', `<svg width="${iconSize}"`);
-            }
-            
-            if (modifiedSvg.includes('height=')) {
-                modifiedSvg = modifiedSvg.replace(/height=['"][^'"]*['"]/, `height="${iconSize}"`);
-            } else {
-                modifiedSvg = modifiedSvg.replace('<svg', `<svg height="${iconSize}"`);
-            }
-
-            // Re-encode into Data URI
-            const whiteSvgUri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(modifiedSvg);
+            const aspectRatio = getSvgAspectRatio(svgDataUri);
 
             const img = new Image();
             img.crossOrigin = "anonymous";
+            img.src = svgDataUri;
+
             img.onload = () => {
                 const canvas = document.createElement('canvas');
                 canvas.width = size;
                 canvas.height = size;
                 const ctx = canvas.getContext('2d');
-                if (ctx) {
-                    // Draw Theme Color Background
-                    ctx.fillStyle = backgroundColor;
-                    ctx.fillRect(0, 0, size, size);
-
-                    // Add Subtle Drop Shadow for Depth
-                    ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
-                    ctx.shadowBlur = size * 0.04; // Soft shadow proportional to size
-                    ctx.shadowOffsetY = size * 0.02; // Slight downward offset
-                    ctx.shadowOffsetX = 0;
-
-                    // Draw Centered White Icon
-                    ctx.imageSmoothingEnabled = true;
-                    ctx.imageSmoothingQuality = 'high';
-                    
-                    // Draw at integer coordinates for sharpness
-                    ctx.drawImage(img, padding, padding, iconSize, iconSize);
-                    
-                    resolve(canvas.toDataURL('image/png'));
-                } else {
+                
+                if (!ctx) {
                     resolve(svgDataUri);
+                    return;
                 }
+
+                // A. Draw Background (Theme Color)
+                ctx.fillStyle = backgroundColor;
+                ctx.fillRect(0, 0, size, size);
+
+                // B. Calculate Sizing & Positioning
+                // Use 60% of the container for the icon to ensure good visibility and padding
+                const targetMaxDimension = size * 0.60;
+                
+                let renderWidth, renderHeight;
+
+                if (aspectRatio > 1) {
+                    // Wider than tall
+                    renderWidth = targetMaxDimension;
+                    renderHeight = targetMaxDimension / aspectRatio;
+                } else {
+                    // Taller than wide or square
+                    renderHeight = targetMaxDimension;
+                    renderWidth = targetMaxDimension * aspectRatio;
+                }
+
+                // Math.floor ensures integer coordinates for sharp rendering
+                const x = Math.floor((size - renderWidth) / 2);
+                const y = Math.floor((size - renderHeight) / 2);
+
+                // C. Create Offscreen Canvas for White Tinting
+                // This method guarantees the icon becomes pure white regardless of its original colors
+                const offCanvas = document.createElement('canvas');
+                offCanvas.width = size;
+                offCanvas.height = size;
+                const offCtx = offCanvas.getContext('2d');
+
+                if (offCtx) {
+                    // 1. Draw the image centered
+                    offCtx.drawImage(img, x, y, renderWidth, renderHeight);
+                    
+                    // 2. Composite Mode 'source-in' keeps the shape but replaces the color
+                    offCtx.globalCompositeOperation = 'source-in';
+                    offCtx.fillStyle = '#ffffff';
+                    offCtx.fillRect(0, 0, size, size);
+
+                    // D. Draw Shadow & Final Icon on Main Canvas
+                    ctx.save();
+                    // Soft, subtle shadow for depth
+                    ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
+                    ctx.shadowBlur = size * 0.05;
+                    ctx.shadowOffsetY = size * 0.02;
+                    ctx.shadowOffsetX = 0;
+                    
+                    // Draw the white-tinted icon
+                    ctx.drawImage(offCanvas, 0, 0);
+                    ctx.restore();
+                } else {
+                    // Fallback
+                    ctx.drawImage(img, x, y, renderWidth, renderHeight);
+                }
+
+                resolve(canvas.toDataURL('image/png'));
             };
+
             img.onerror = (e) => {
                 console.warn("Error loading SVG for icon generation:", e);
                 resolve(svgDataUri);
             };
-            img.src = whiteSvgUri;
 
         } catch (e) {
             console.error("Error generating PNG icon:", e);
