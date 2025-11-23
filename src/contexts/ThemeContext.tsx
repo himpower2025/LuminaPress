@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useMemo, useEffect, useCallback } from 'react';
 import { themes, Theme, luminaPressTheme } from '../themes';
 
@@ -10,7 +11,6 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 // Helper function to convert SVG Data URI to PNG Data URI using Canvas
-// Generates a high-quality, centered, white icon on a theme-colored background
 const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: string): Promise<string> => {
   return new Promise((resolve) => {
     const img = new Image();
@@ -26,56 +26,22 @@ const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: stri
             return;
         }
 
-        // A. Draw Background (Theme Color)
+        // 1. Draw Background
         ctx.fillStyle = backgroundColor;
         ctx.fillRect(0, 0, size, size);
 
-        // B. Determine Dimensions & Aspect Ratio (Robust)
-        // Priority 1: Use natural dimensions from the browser-loaded image
-        let w = img.naturalWidth || img.width;
-        let h = img.naturalHeight || img.height;
-
-        // Priority 2: If browser reports 0, parse the viewBox from the raw XML.
-        if (!w || !h || w === 0 || h === 0) {
-            try {
-              // CRITICAL: Decode the URI to handle %20, %3C, etc. before regex
-              const decodedUri = decodeURIComponent(svgDataUri);
-              const viewBoxMatch = decodedUri.match(/viewBox=['"]\s*[\d\.\-]+\s+[\d\.\-]+\s+([\d\.]+)\s+([\d\.]+)\s*['"]/i);
-              if (viewBoxMatch && viewBoxMatch.length >= 3) {
-                  w = parseFloat(viewBoxMatch[1]);
-                  h = parseFloat(viewBoxMatch[2]);
-              } else {
-                  w = 512; 
-                  h = 512; 
-              }
-            } catch (e) {
-              console.warn("Failed to parse SVG dimensions", e);
-              w = 512; h = 512;
-            }
-        }
-
-        const aspectRatio = (h > 0) ? w / h : 1;
-
-        // C. Calculate Draw Size (Fit within 50% for safety and aesthetics)
-        // Using 50% ensures plenty of breathing room and no cropping on rounded squircle icons.
-        const targetSize = size * 0.5; 
-        
-        let drawW = targetSize;
-        let drawH = drawW / aspectRatio;
-
-        if (drawH > targetSize) {
-            drawH = targetSize;
-            drawW = drawH * aspectRatio;
-        }
-
-        // D. Center Coordinates
-        const x = (size - drawW) / 2;
-        const y = (size - drawH) / 2;
+        // 2. Setup Drawing Dimensions
+        // We now rely on themes.ts having explicit width='512' height='512' in the SVG.
+        // This ensures the browser loads it as a square image.
+        // We will draw it at 60% of the canvas size to provide nice padding.
+        const iconScale = 0.6;
+        const drawSize = size * iconScale;
+        const offset = (size - drawSize) / 2;
 
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
 
-        // E. Draw White Icon with Shadow (using Composite Masking)
+        // 3. Draw White Icon with Shadow using Composite Masking
         const maskCanvas = document.createElement('canvas');
         maskCanvas.width = size;
         maskCanvas.height = size;
@@ -85,20 +51,26 @@ const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: stri
             maskCtx.imageSmoothingEnabled = true;
             maskCtx.imageSmoothingQuality = 'high';
             
-            maskCtx.drawImage(img, x, y, drawW, drawH);
+            // Draw the image centered
+            maskCtx.drawImage(img, offset, offset, drawSize, drawSize);
+            
+            // Composite source-in to fill with white
             maskCtx.globalCompositeOperation = 'source-in';
             maskCtx.fillStyle = '#ffffff';
             maskCtx.fillRect(0, 0, size, size);
 
+            // Draw shadow on main canvas
             ctx.save();
             ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
             ctx.shadowBlur = size * 0.04;
             ctx.shadowOffsetY = size * 0.02;
             
+            // Draw the white icon onto the main canvas
             ctx.drawImage(maskCanvas, 0, 0);
             ctx.restore();
         } else {
-            ctx.drawImage(img, x, y, drawW, drawH);
+            // Fallback if masking fails (unlikely)
+            ctx.drawImage(img, offset, offset, drawSize, drawSize);
         }
         
         resolve(canvas.toDataURL('image/png'));
@@ -109,6 +81,8 @@ const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: stri
         resolve(svgDataUri);
     };
 
+    // Ensure the SVG string is treated as UTF-8 when creating the Image
+    // This helps with parsing encoded characters in Data URIs
     img.src = svgDataUri;
   });
 };
