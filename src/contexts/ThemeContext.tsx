@@ -30,18 +30,51 @@ const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: stri
         ctx.fillStyle = backgroundColor;
         ctx.fillRect(0, 0, size, size);
 
-        // 2. Setup Drawing Dimensions
-        // We now rely on themes.ts having explicit width='512' height='512' in the SVG.
-        // This ensures the browser loads it as a square image.
-        // We will draw it at 60% of the canvas size to provide nice padding.
-        const iconScale = 0.6;
-        const drawSize = size * iconScale;
-        const offset = (size - drawSize) / 2;
+        // 2. Determine Dimensions & Aspect Ratio
+        // SVG Data URIs sometimes default to 300x150 in browsers if dimensions aren't explicit.
+        // We prioritize natural dimensions, but fallback to parsing viewBox if dimensions look like defaults.
+        let natW = img.naturalWidth;
+        let natH = img.naturalHeight;
 
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
+        // Check for browser default sizing or missing sizing which indicates parsing issues
+        if (natW === 0 || (natW === 300 && natH === 150)) {
+             try {
+                 // Try to decode and parse viewBox from the string manually
+                 const decoded = decodeURIComponent(svgDataUri);
+                 const viewBoxMatch = decoded.match(/viewBox=['"]([\d\s\.-]+)['"]/);
+                 if (viewBoxMatch) {
+                     const parts = viewBoxMatch[1].trim().split(/\s+/).map(Number);
+                     if (parts.length === 4) {
+                         natW = parts[2];
+                         natH = parts[3];
+                     }
+                 }
+             } catch (e) {
+                 console.warn("Failed to parse viewBox from SVG", e);
+             }
+        }
 
-        // 3. Draw White Icon with Shadow using Composite Masking
+        // Default to square if we still don't have dimensions
+        if (!natW || !natH) {
+            natW = 512; 
+            natH = 512;
+        }
+
+        // 3. Calculate Drawing Rect to fit within 60% of canvas (Safe Area) while maintaining aspect ratio
+        const padding = size * 0.20; // 20% padding on each side -> 60% content area
+        const availWidth = size - (padding * 2);
+        const availHeight = size - (padding * 2);
+
+        const scale = Math.min(availWidth / natW, availHeight / natH);
+        
+        const drawW = natW * scale;
+        const drawH = natH * scale;
+        
+        // Center the icon
+        const offsetX = (size - drawW) / 2;
+        const offsetY = (size - drawH) / 2;
+
+        // 4. Draw White Icon with Shadow using Composite Masking
         const maskCanvas = document.createElement('canvas');
         maskCanvas.width = size;
         maskCanvas.height = size;
@@ -52,7 +85,7 @@ const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: stri
             maskCtx.imageSmoothingQuality = 'high';
             
             // Draw the image centered
-            maskCtx.drawImage(img, offset, offset, drawSize, drawSize);
+            maskCtx.drawImage(img, offsetX, offsetY, drawW, drawH);
             
             // Composite source-in to fill with white
             maskCtx.globalCompositeOperation = 'source-in';
@@ -69,8 +102,8 @@ const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: stri
             ctx.drawImage(maskCanvas, 0, 0);
             ctx.restore();
         } else {
-            // Fallback if masking fails (unlikely)
-            ctx.drawImage(img, offset, offset, drawSize, drawSize);
+            // Fallback
+            ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
         }
         
         resolve(canvas.toDataURL('image/png'));
@@ -81,9 +114,14 @@ const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: stri
         resolve(svgDataUri);
     };
 
-    // Ensure the SVG string is treated as UTF-8 when creating the Image
-    // This helps with parsing encoded characters in Data URIs
-    img.src = svgDataUri;
+    // Ensure spaces and special chars in Data URI are handled if they weren't already
+    // Some browsers are strict about Data URIs.
+    // If it's already encoded, this might double encode, so we check.
+    if (svgDataUri.includes('<svg') && !svgDataUri.includes('%3C')) {
+         img.src = svgDataUri.replace(/#/g, '%23').replace(/</g, '%3C').replace(/>/g, '%3E').replace(/\s/g, '%20');
+    } else {
+        img.src = svgDataUri;
+    }
   });
 };
 
