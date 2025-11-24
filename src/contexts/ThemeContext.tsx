@@ -13,6 +13,59 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 // Helper function to convert SVG Data URI to PNG Data URI using Canvas
 const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: string): Promise<string> => {
   return new Promise((resolve) => {
+    // 1. Parse the SVG string from the Data URI
+    let svgString = '';
+    try {
+      if (svgDataUri.startsWith('data:image/svg+xml;base64,')) {
+        svgString = atob(svgDataUri.split(',')[1]);
+      } else if (svgDataUri.startsWith('data:image/svg+xml,')) {
+        svgString = decodeURIComponent(svgDataUri.split(',')[1]);
+      } else {
+        // Try decoding if it looks encoded, otherwise use raw
+        try {
+             svgString = decodeURIComponent(svgDataUri);
+        } catch {
+             svgString = svgDataUri;
+        }
+      }
+    } catch (e) {
+      console.error("Error decoding SVG Data URI", e);
+      resolve(svgDataUri);
+      return;
+    }
+
+    // 2. Manipulate SVG with DOMParser to enforce dimensions
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svgString, "image/svg+xml");
+    const svgElement = doc.documentElement;
+    
+    if (!svgElement || svgElement.tagName.toLowerCase() !== 'svg') {
+        console.warn("Not a valid SVG");
+        resolve(svgDataUri);
+        return;
+    }
+
+    // Ensure viewBox exists for proper scaling
+    if (!svgElement.hasAttribute('viewBox')) {
+       const w = svgElement.getAttribute('width') || '512';
+       const h = svgElement.getAttribute('height') || '512';
+       svgElement.setAttribute('viewBox', `0 0 ${parseFloat(w)} ${parseFloat(h)}`);
+    }
+
+    // Determine icon size (60% of the final image size)
+    const iconSize = Math.floor(size * 0.6);
+    
+    // Force width and height attributes on the SVG. 
+    // This guarantees the browser renders it at this exact square size, preserving aspect ratio via viewBox.
+    svgElement.setAttribute('width', iconSize.toString());
+    svgElement.setAttribute('height', iconSize.toString());
+    
+    // Serialize back to a string and create a new clean Data URI
+    const serializer = new XMLSerializer();
+    const newSvgString = serializer.serializeToString(svgElement);
+    // Use robust base64 encoding that handles Unicode
+    const newSvgDataUri = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(newSvgString)));
+
     const img = new Image();
     img.crossOrigin = "anonymous";
     
@@ -26,55 +79,14 @@ const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: stri
             return;
         }
 
-        // 1. Draw Background
+        // 3. Draw Background
         ctx.fillStyle = backgroundColor;
         ctx.fillRect(0, 0, size, size);
 
-        // 2. Determine Dimensions & Aspect Ratio
-        // SVG Data URIs sometimes default to 300x150 in browsers if dimensions aren't explicit.
-        // We prioritize natural dimensions, but fallback to parsing viewBox if dimensions look like defaults.
-        let natW = img.naturalWidth;
-        let natH = img.naturalHeight;
+        // 4. Draw Icon Centered
+        const offset = (size - iconSize) / 2;
 
-        // Check for browser default sizing or missing sizing which indicates parsing issues
-        if (natW === 0 || (natW === 300 && natH === 150)) {
-             try {
-                 // Try to decode and parse viewBox from the string manually
-                 const decoded = decodeURIComponent(svgDataUri);
-                 const viewBoxMatch = decoded.match(/viewBox=['"]([\d\s\.-]+)['"]/);
-                 if (viewBoxMatch) {
-                     const parts = viewBoxMatch[1].trim().split(/\s+/).map(Number);
-                     if (parts.length === 4) {
-                         natW = parts[2];
-                         natH = parts[3];
-                     }
-                 }
-             } catch (e) {
-                 console.warn("Failed to parse viewBox from SVG", e);
-             }
-        }
-
-        // Default to square if we still don't have dimensions
-        if (!natW || !natH) {
-            natW = 512; 
-            natH = 512;
-        }
-
-        // 3. Calculate Drawing Rect to fit within 60% of canvas (Safe Area) while maintaining aspect ratio
-        const padding = size * 0.20; // 20% padding on each side -> 60% content area
-        const availWidth = size - (padding * 2);
-        const availHeight = size - (padding * 2);
-
-        const scale = Math.min(availWidth / natW, availHeight / natH);
-        
-        const drawW = natW * scale;
-        const drawH = natH * scale;
-        
-        // Center the icon
-        const offsetX = (size - drawW) / 2;
-        const offsetY = (size - drawH) / 2;
-
-        // 4. Draw White Icon with Shadow using Composite Masking
+        // Use an intermediate canvas to apply the white fill mask
         const maskCanvas = document.createElement('canvas');
         maskCanvas.width = size;
         maskCanvas.height = size;
@@ -84,8 +96,8 @@ const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: stri
             maskCtx.imageSmoothingEnabled = true;
             maskCtx.imageSmoothingQuality = 'high';
             
-            // Draw the image centered
-            maskCtx.drawImage(img, offsetX, offsetY, drawW, drawH);
+            // Draw the resized SVG onto the mask canvas
+            maskCtx.drawImage(img, offset, offset, iconSize, iconSize);
             
             // Composite source-in to fill with white
             maskCtx.globalCompositeOperation = 'source-in';
@@ -95,7 +107,7 @@ const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: stri
             // Draw shadow on main canvas
             ctx.save();
             ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
-            ctx.shadowBlur = size * 0.04;
+            ctx.shadowBlur = size * 0.05;
             ctx.shadowOffsetY = size * 0.02;
             
             // Draw the white icon onto the main canvas
@@ -103,25 +115,18 @@ const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: stri
             ctx.restore();
         } else {
             // Fallback
-            ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
+            ctx.drawImage(img, offset, offset, iconSize, iconSize);
         }
         
         resolve(canvas.toDataURL('image/png'));
     };
 
-    img.onerror = () => {
-        console.warn("Failed to load SVG for icon generation");
+    img.onerror = (e) => {
+        console.warn("Failed to load manipulated SVG for icon generation", e);
         resolve(svgDataUri);
     };
 
-    // Ensure spaces and special chars in Data URI are handled if they weren't already
-    // Some browsers are strict about Data URIs.
-    // If it's already encoded, this might double encode, so we check.
-    if (svgDataUri.includes('<svg') && !svgDataUri.includes('%3C')) {
-         img.src = svgDataUri.replace(/#/g, '%23').replace(/</g, '%3C').replace(/>/g, '%3E').replace(/\s/g, '%20');
-    } else {
-        img.src = svgDataUri;
-    }
+    img.src = newSvgDataUri;
   });
 };
 
