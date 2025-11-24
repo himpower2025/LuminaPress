@@ -11,29 +11,25 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 // Helper function to convert SVG Data URI to PNG Data URI using Canvas
-// Uses canvas compositing to force the icon color to white (or specified color)
-// ensuring visibility against the background regardless of original SVG attributes.
+// Improved robustness: Modifies SVG string directly to enforce white color and size.
 const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: string, iconColor: string = '#FFFFFF'): Promise<string> => {
   return new Promise((resolve) => {
     try {
-      // 1. Decode the SVG String to inspect/modify it
-      let svgStr = "";
+      // 1. Decode URI to get raw SVG string
       const commaIdx = svgDataUri.indexOf(',');
-      const content = commaIdx > -1 ? svgDataUri.substring(commaIdx + 1) : svgDataUri;
-      
-      // Robust decoding for Base64 or URL-encoded SVG
-      if (svgDataUri.includes(";base64,") || /^[A-Za-z0-9+/=]+$/.test(content.replace(/\s/g, ''))) {
-         try {
-            svgStr = atob(content);
-         } catch (e) {
-            svgStr = decodeURIComponent(content);
-         }
-      } else {
-         svgStr = decodeURIComponent(content);
+      const rawContent = commaIdx > -1 ? svgDataUri.substring(commaIdx + 1) : svgDataUri;
+      let svgStr = decodeURIComponent(rawContent);
+
+      // Handle base64 if present
+      if (svgDataUri.includes(";base64,") || /^[A-Za-z0-9+/=]+$/.test(rawContent.replace(/\s/g, ''))) {
+        try {
+          svgStr = atob(rawContent);
+        } catch (e) {
+           // If atob fails, it might just be a standard URI encoded string
+        }
       }
 
       // 2. Parse Aspect Ratio from viewBox (supports spaces and commas)
-      // Example: "0 0 512 512" or "0,0,512,512"
       let aspectRatio = 1;
       const viewBoxMatch = svgStr.match(/viewBox=["']\s*([\d\.]+)[,\s]+([\d\.]+)[,\s]+([\d\.]+)[,\s]+([\d\.]+)\s*["']/i);
       if (viewBoxMatch) {
@@ -44,27 +40,25 @@ const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: stri
         }
       }
 
-      // 3. Inject explicit width/height into SVG to force high-res rasterization.
-      // We replace existing dimensions with the target size to prevent blurry upscaling.
-      const svgOpenTagMatch = svgStr.match(/<svg[^>]*>/i);
-      let finalSvgDataUri = svgDataUri;
+      // 3. Clean and Inject Attributes
+      // Remove existing width, height, and fill attributes to prevent conflicts
+      // We use a regex that matches the attribute and its value
+      svgStr = svgStr.replace(/\s+(width|height|fill)\s*=\s*["'][^"']*["']/gi, '');
       
-      if (svgOpenTagMatch) {
-          const originalTag = svgOpenTagMatch[0];
-          let newTag = originalTag
-             .replace(/\s+(width|height)\s*=\s*["'][^"']*["']/gi, '') // Remove existing dims
-             .replace(/>$/, ''); // Open the tag
-          
-          // Inject target size (e.g., width="1024" height="1024")
-          newTag += ` width="${size}" height="${size}">`;
-          
-          const newSvgStr = svgStr.replace(originalTag, newTag);
-          
-          // Re-encode to ensure the Image object loads the modified version
-          finalSvgDataUri = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(newSvgStr)}`;
+      // Inject new explicit dimensions and fill color into the opening <svg> tag
+      // This ensures the browser rasterizes the SVG at the target resolution (crispness)
+      // and renders it in the target color (white)
+      const svgTagMatch = svgStr.match(/<svg([^>]*)>/i);
+      if (svgTagMatch) {
+          const existingAttrs = svgTagMatch[1];
+          const newAttrs = `${existingAttrs} width="${size}" height="${size}" fill="${iconColor}"`;
+          svgStr = svgStr.replace(svgTagMatch[0], `<svg ${newAttrs}>`);
       }
 
-      // 4. Load Image
+      // 4. Re-encode
+      const finalSvgDataUri = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`;
+
+      // 5. Load Image and Draw to Canvas
       const img = new Image();
       img.crossOrigin = "anonymous";
       
@@ -79,18 +73,19 @@ const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: stri
           return;
         }
 
-        // A. Draw Background
+        // Draw Background
         ctx.fillStyle = backgroundColor;
         ctx.fillRect(0, 0, size, size);
 
-        // B. Calculate Icon Placement (Center, Contain, with Padding)
-        const padding = size * 0.25; // 25% padding total
+        // Draw Icon (Centered with Padding)
+        // Use 25% padding (12.5% on each side) for a balanced look
+        const padding = size * 0.25; 
         const drawArea = size - padding;
         
         let dw = drawArea;
         let dh = drawArea / aspectRatio;
 
-        // Adjust dimensions to fit within drawArea while maintaining aspect ratio
+        // Scale down if height exceeds area
         if (dh > drawArea) {
             dh = drawArea;
             dw = drawArea * aspectRatio;
@@ -99,46 +94,19 @@ const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: stri
         const dx = (size - dw) / 2;
         const dy = (size - dh) / 2;
 
-        // C. Draw Icon with "Source-In" Composite to force Color
-        // This technique uses the alpha channel of the loaded SVG to mask a solid color fill.
-        
-        const maskCanvas = document.createElement('canvas');
-        maskCanvas.width = size;
-        maskCanvas.height = size;
-        const maskCtx = maskCanvas.getContext('2d');
-        
-        if (maskCtx) {
-            // 1. Draw the SVG image (could be any color, black, orange, etc.)
-            maskCtx.drawImage(img, dx, dy, dw, dh);
-            
-            // 2. Change composition mode: New drawing only appears where existing pixels are opaque.
-            maskCtx.globalCompositeOperation = 'source-in';
-            
-            // 3. Fill with the desired icon color (White). 
-            // This effectively "paints" the SVG shape with white.
-            maskCtx.fillStyle = iconColor;
-            maskCtx.fillRect(0, 0, size, size);
-            
-            // 4. Draw the result onto the main canvas
-            ctx.drawImage(maskCanvas, 0, 0);
-        } else {
-            // Fallback: draw directly without color masking if offscreen canvas fails
-            ctx.drawImage(img, dx, dy, dw, dh);
-        }
-
+        ctx.drawImage(img, dx, dy, dw, dh);
         resolve(canvas.toDataURL('image/png'));
       };
 
       img.onerror = (err) => {
-        console.warn("SVG Load Error", err);
-        // Fallback: return original if image loading fails
-        resolve(svgDataUri);
+        console.warn("Icon Generation Failed", err);
+        resolve(svgDataUri); // Fallback
       };
 
       img.src = finalSvgDataUri;
 
     } catch (e) {
-      console.error("Icon Generation Error", e);
+      console.error("Icon Gen Error", e);
       resolve(svgDataUri);
     }
   });
