@@ -11,122 +11,76 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 // Helper function to convert SVG Data URI to PNG Data URI using Canvas
+// This version uses the browser's native image rendering to determine accurate aspect ratios.
 const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: string): Promise<string> => {
   return new Promise((resolve) => {
-    // 1. Parse the SVG string from the Data URI
-    let svgString = '';
-    try {
-      if (svgDataUri.startsWith('data:image/svg+xml;base64,')) {
-        svgString = atob(svgDataUri.split(',')[1]);
-      } else if (svgDataUri.startsWith('data:image/svg+xml,')) {
-        svgString = decodeURIComponent(svgDataUri.split(',')[1]);
-      } else {
-        // Try decoding if it looks encoded, otherwise use raw
-        try {
-             svgString = decodeURIComponent(svgDataUri);
-        } catch {
-             svgString = svgDataUri;
-        }
-      }
-    } catch (e) {
-      console.error("Error decoding SVG Data URI", e);
-      resolve(svgDataUri);
-      return;
-    }
+    const img = new Image();
+    // Enable CORS to avoid tainted canvas if pulling from external sources (though mostly data URIs here)
+    img.crossOrigin = "anonymous"; 
 
-    // 2. Manipulate SVG with DOMParser to enforce dimensions
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(svgString, "image/svg+xml");
-    const svgElement = doc.documentElement;
-    
-    if (!svgElement || svgElement.tagName.toLowerCase() !== 'svg') {
-        console.warn("Not a valid SVG");
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
         resolve(svgDataUri);
         return;
-    }
+      }
 
-    // Ensure viewBox exists for proper scaling
-    if (!svgElement.hasAttribute('viewBox')) {
-       const w = svgElement.getAttribute('width') || '512';
-       const h = svgElement.getAttribute('height') || '512';
-       svgElement.setAttribute('viewBox', `0 0 ${parseFloat(w)} ${parseFloat(h)}`);
-    }
+      // 1. Draw Background (Rounded square or circle can be done here, currently full square)
+      ctx.fillStyle = backgroundColor;
+      ctx.fillRect(0, 0, size, size);
 
-    // Determine icon size (60% of the final image size)
-    const iconSize = Math.floor(size * 0.6);
-    
-    // Force width and height attributes on the SVG. 
-    // This guarantees the browser renders it at this exact square size, preserving aspect ratio via viewBox.
-    svgElement.setAttribute('width', iconSize.toString());
-    svgElement.setAttribute('height', iconSize.toString());
-    
-    // Serialize back to a string and create a new clean Data URI
-    const serializer = new XMLSerializer();
-    const newSvgString = serializer.serializeToString(svgElement);
-    // Use robust base64 encoding that handles Unicode
-    const newSvgDataUri = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(newSvgString)));
+      // 2. Determine Aspect Ratio from the loaded image (Browser's source of truth)
+      const nativeWidth = img.naturalWidth || 512;
+      const nativeHeight = img.naturalHeight || 512;
+      const aspectRatio = nativeWidth / nativeHeight;
 
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    
-    img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-            resolve(svgDataUri);
-            return;
-        }
+      // 3. Calculate Dimensions to "Contain" the icon within the canvas
+      // We add padding so the icon doesn't touch the edges (Safe Zone)
+      const padding = size * 0.2; // 20% padding
+      const drawAreaSize = size - (padding * 2);
 
-        // 3. Draw Background
-        ctx.fillStyle = backgroundColor;
-        ctx.fillRect(0, 0, size, size);
+      let drawWidth, drawHeight;
 
-        // 4. Draw Icon Centered
-        const offset = (size - iconSize) / 2;
+      if (aspectRatio > 1) {
+        // Wider than tall
+        drawWidth = drawAreaSize;
+        drawHeight = drawAreaSize / aspectRatio;
+      } else {
+        // Taller than wide (or square)
+        drawHeight = drawAreaSize;
+        drawWidth = drawAreaSize * aspectRatio;
+      }
 
-        // Use an intermediate canvas to apply the white fill mask
-        const maskCanvas = document.createElement('canvas');
-        maskCanvas.width = size;
-        maskCanvas.height = size;
-        const maskCtx = maskCanvas.getContext('2d');
-        
-        if (maskCtx) {
-            maskCtx.imageSmoothingEnabled = true;
-            maskCtx.imageSmoothingQuality = 'high';
-            
-            // Draw the resized SVG onto the mask canvas
-            maskCtx.drawImage(img, offset, offset, iconSize, iconSize);
-            
-            // Composite source-in to fill with white
-            maskCtx.globalCompositeOperation = 'source-in';
-            maskCtx.fillStyle = '#ffffff';
-            maskCtx.fillRect(0, 0, size, size);
+      // 4. Center the image
+      const x = (size - drawWidth) / 2;
+      const y = (size - drawHeight) / 2;
 
-            // Draw shadow on main canvas
-            ctx.save();
-            ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
-            ctx.shadowBlur = size * 0.05;
-            ctx.shadowOffsetY = size * 0.02;
-            
-            // Draw the white icon onto the main canvas
-            ctx.drawImage(maskCanvas, 0, 0);
-            ctx.restore();
-        } else {
-            // Fallback
-            ctx.drawImage(img, offset, offset, iconSize, iconSize);
-        }
-        
-        resolve(canvas.toDataURL('image/png'));
+      // 5. Draw the image with high quality
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      
+      // Draw the SVG image onto the canvas
+      // Since it's an SVG loaded into an Image, scaling it here usually retains vector quality 
+      // if the SVG has proper viewbox/dimensions.
+      ctx.drawImage(img, x, y, drawWidth, drawHeight);
+
+      // 6. Optional: Add a subtle white overlay or shadow if needed for visibility
+      // (Skipped to keep the icon clean and flat as per modern design)
+
+      resolve(canvas.toDataURL('image/png'));
     };
 
     img.onerror = (e) => {
-        console.warn("Failed to load manipulated SVG for icon generation", e);
-        resolve(svgDataUri);
+      console.warn("Failed to load SVG for icon generation", e);
+      // Fallback: return the original SVG URI if PNG generation fails
+      resolve(svgDataUri);
     };
 
-    img.src = newSvgDataUri;
+    // Trigger load
+    img.src = svgDataUri;
   });
 };
 
@@ -170,6 +124,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         iconLink.href = currentTheme.favicon;
 
         // 3. Update iOS Home Screen Icon (PNG with Background)
+        // 180px is standard for iPhone
         const appleIconPng = await generatePngIcon(currentTheme.favicon, 180, themeColor);
         
         let appleLink = document.getElementById('dynamic-apple-icon') as HTMLLinkElement;
@@ -191,6 +146,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         metaThemeColor.content = themeColor;
 
         // 5. Generate & Update Web App Manifest
+        // Chrome Android mostly uses 192 and 512
         const icon192 = await generatePngIcon(currentTheme.favicon, 192, themeColor);
         const icon512 = await generatePngIcon(currentTheme.favicon, 512, themeColor);
 
