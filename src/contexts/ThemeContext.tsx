@@ -10,106 +10,38 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-// Helper function to convert SVG Data URI to PNG Data URI using Canvas
-// Improved robustness: Modifies SVG string directly to enforce white color and size.
-const generatePngIcon = (svgDataUri: string, size: number, backgroundColor: string, iconColor: string = '#FFFFFF'): Promise<string> => {
-  return new Promise((resolve) => {
-    try {
-      // 1. Decode URI to get raw SVG string
-      const commaIdx = svgDataUri.indexOf(',');
-      const rawContent = commaIdx > -1 ? svgDataUri.substring(commaIdx + 1) : svgDataUri;
-      let svgStr = decodeURIComponent(rawContent);
+// Helper function to generate icon from SVG Path Data directly on Canvas
+// This eliminates the "Image Loading" step which causes invisible icons.
+const generateIconFromPath = (pathData: string, size: number, backgroundColor: string, iconColor: string = '#FFFFFF'): string => {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
 
-      // Handle base64 if present
-      if (svgDataUri.includes(";base64,") || /^[A-Za-z0-9+/=]+$/.test(rawContent.replace(/\s/g, ''))) {
-        try {
-          svgStr = atob(rawContent);
-        } catch (e) {
-           // If atob fails, it might just be a standard URI encoded string
-        }
-      }
+  if (!ctx) {
+    return '';
+  }
 
-      // 2. Parse Aspect Ratio from viewBox (supports spaces and commas)
-      let aspectRatio = 1;
-      const viewBoxMatch = svgStr.match(/viewBox=["']\s*([\d\.]+)[,\s]+([\d\.]+)[,\s]+([\d\.]+)[,\s]+([\d\.]+)\s*["']/i);
-      if (viewBoxMatch) {
-        const w = parseFloat(viewBoxMatch[3]);
-        const h = parseFloat(viewBoxMatch[4]);
-        if (w > 0 && h > 0) {
-          aspectRatio = w / h;
-        }
-      }
+  // 1. Draw Background
+  ctx.fillStyle = backgroundColor;
+  ctx.fillRect(0, 0, size, size);
 
-      // 3. Clean and Inject Attributes
-      // Remove existing width, height, and fill attributes to prevent conflicts
-      // We use a regex that matches the attribute and its value
-      svgStr = svgStr.replace(/\s+(width|height|fill)\s*=\s*["'][^"']*["']/gi, '');
-      
-      // Inject new explicit dimensions and fill color into the opening <svg> tag
-      // This ensures the browser rasterizes the SVG at the target resolution (crispness)
-      // and renders it in the target color (white)
-      const svgTagMatch = svgStr.match(/<svg([^>]*)>/i);
-      if (svgTagMatch) {
-          const existingAttrs = svgTagMatch[1];
-          const newAttrs = `${existingAttrs} width="${size}" height="${size}" fill="${iconColor}"`;
-          svgStr = svgStr.replace(svgTagMatch[0], `<svg ${newAttrs}>`);
-      }
+  // 2. Setup Vector Drawing
+  // FontAwesome paths are typically defined on a 0-512 viewbox.
+  // We need to scale this to our target canvas size with some padding.
+  const padding = size * 0.2; // 20% padding
+  const drawSize = size - (padding * 2);
+  const scale = drawSize / 512; 
 
-      // 4. Re-encode
-      const finalSvgDataUri = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`;
+  ctx.translate(padding, padding);
+  ctx.scale(scale, scale);
 
-      // 5. Load Image and Draw to Canvas
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        
-        if (!ctx) {
-          resolve(svgDataUri);
-          return;
-        }
+  // 3. Draw the Path
+  const p = new Path2D(pathData);
+  ctx.fillStyle = iconColor;
+  ctx.fill(p);
 
-        // Draw Background
-        ctx.fillStyle = backgroundColor;
-        ctx.fillRect(0, 0, size, size);
-
-        // Draw Icon (Centered with Padding)
-        // Use 25% padding (12.5% on each side) for a balanced look
-        const padding = size * 0.25; 
-        const drawArea = size - padding;
-        
-        let dw = drawArea;
-        let dh = drawArea / aspectRatio;
-
-        // Scale down if height exceeds area
-        if (dh > drawArea) {
-            dh = drawArea;
-            dw = drawArea * aspectRatio;
-        }
-        
-        const dx = (size - dw) / 2;
-        const dy = (size - dh) / 2;
-
-        ctx.drawImage(img, dx, dy, dw, dh);
-        resolve(canvas.toDataURL('image/png'));
-      };
-
-      img.onerror = (err) => {
-        console.warn("Icon Generation Failed", err);
-        resolve(svgDataUri); // Fallback
-      };
-
-      img.src = finalSvgDataUri;
-
-    } catch (e) {
-      console.error("Icon Gen Error", e);
-      resolve(svgDataUri);
-    }
-  });
+  return canvas.toDataURL('image/png');
 };
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -122,11 +54,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const downloadAppIcon = useCallback(async () => {
-    // Generate a high-resolution (1024x1024) icon for download
-    // Force icon to be WHITE to contrast with the primary background color
+  const downloadAppIcon = useCallback(() => {
+    // Generate a high-resolution (1024x1024) icon for download using the Path method
     const size = 1024;
-    const pngUrl = await generatePngIcon(currentTheme.favicon, size, currentTheme.colors.primary['500'], '#FFFFFF');
+    const pngUrl = generateIconFromPath(currentTheme.iconPath, size, currentTheme.colors.primary['500'], '#FFFFFF');
     
     const link = document.createElement('a');
     link.href = pngUrl;
@@ -140,7 +71,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // 1. Update Document Title
     document.title = currentTheme.appName;
 
-    const updateIconsAndManifest = async () => {
+    const updateIconsAndManifest = () => {
         const themeColor = currentTheme.colors.primary['500'];
         const whiteIconColor = '#FFFFFF';
 
@@ -154,9 +85,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
         iconLink.href = currentTheme.favicon;
 
-        // 3. Update iOS Home Screen Icon (PNG with Background, White Icon)
-        // 180px is standard for iPhone
-        const appleIconPng = await generatePngIcon(currentTheme.favicon, 180, themeColor, whiteIconColor);
+        // 3. Update iOS Home Screen Icon
+        // Use the Path method to reliably generate the PNG
+        const appleIconPng = generateIconFromPath(currentTheme.iconPath, 180, themeColor, whiteIconColor);
         
         let appleLink = document.getElementById('dynamic-apple-icon') as HTMLLinkElement;
         if (!appleLink) {
@@ -177,9 +108,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         metaThemeColor.content = themeColor;
 
         // 5. Generate & Update Web App Manifest
-        // Chrome Android mostly uses 192 and 512. Use White Icon on Colored BG.
-        const icon192 = await generatePngIcon(currentTheme.favicon, 192, themeColor, whiteIconColor);
-        const icon512 = await generatePngIcon(currentTheme.favicon, 512, themeColor, whiteIconColor);
+        // Use the Path method for 192 and 512 icons
+        const icon192 = generateIconFromPath(currentTheme.iconPath, 192, themeColor, whiteIconColor);
+        const icon512 = generateIconFromPath(currentTheme.iconPath, 512, themeColor, whiteIconColor);
 
         const manifest = {
             name: currentTheme.appName,
