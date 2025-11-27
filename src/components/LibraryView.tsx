@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Book, Announcement } from '../types';
 import BookCover from './BookCover';
@@ -7,7 +8,7 @@ import useLocalStorage from '../hooks/useLocalStorage';
 import { themes } from '../themes';
 import AnnouncementPopup from './AnnouncementPopup';
 import NotificationToast from './NotificationToast';
-import { FaShieldAlt, FaCoins, FaBell, FaBellSlash, FaChevronDown, FaDownload } from 'react-icons/fa';
+import { FaShieldAlt, FaCoins, FaBell, FaBellSlash, FaChevronDown, FaDownload, FaExternalLinkAlt } from 'react-icons/fa';
 
 interface LibraryViewProps {
   libraryBooks: Book[];
@@ -32,7 +33,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
   onBookUploaded, 
   onLogout 
 }) => {
-  const { theme, setTheme, downloadAppIcon } = useTheme();
+  const { theme, setTheme, downloadAppIcon, openIconInNewTab } = useTheme();
   const Logo = theme.logo;
 
   const [dismissedAnnouncements, setDismissedAnnouncements] = useLocalStorage<string[]>('dismissed-announcements', []);
@@ -139,13 +140,20 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                     <span className="font-bold text-primary-600 dark:text-primary-400">42</span>
                   </div>
                   
-                  <div className="pt-4 border-t border-gray-200 dark:border-gray-600">
+                  <div className="pt-4 border-t border-gray-200 dark:border-gray-600 space-y-3">
                     <button 
                         onClick={downloadAppIcon}
                         className="w-full flex items-center justify-center gap-2 bg-primary-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-primary-700 transition-colors shadow-sm"
                     >
                         <FaDownload />
                         Download App Icon (1024px)
+                    </button>
+                    <button 
+                        onClick={openIconInNewTab}
+                        className="w-full flex items-center justify-center gap-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors shadow-sm"
+                    >
+                        <FaExternalLinkAlt />
+                        Open Icon in New Tab
                     </button>
                     <p className="text-xs text-center text-gray-500 mt-2">Downloads the generated PWA icon for verification.</p>
                   </div>

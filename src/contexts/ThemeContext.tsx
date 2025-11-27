@@ -6,43 +6,10 @@ interface ThemeContextType {
   theme: Theme;
   setTheme: (themeKey: string) => void;
   downloadAppIcon: () => void;
+  openIconInNewTab: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
-
-// Helper function to generate icon from SVG Path Data directly on Canvas
-// This eliminates the "Image Loading" step which causes invisible icons.
-const generateIconFromPath = (pathData: string, size: number, backgroundColor: string, iconColor: string = '#FFFFFF'): string => {
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-
-  if (!ctx) {
-    return '';
-  }
-
-  // 1. Draw Background
-  ctx.fillStyle = backgroundColor;
-  ctx.fillRect(0, 0, size, size);
-
-  // 2. Setup Vector Drawing
-  // FontAwesome paths are typically defined on a 0-512 viewbox.
-  // We need to scale this to our target canvas size with some padding.
-  const padding = size * 0.2; // 20% padding
-  const drawSize = size - (padding * 2);
-  const scale = drawSize / 512; 
-
-  ctx.translate(padding, padding);
-  ctx.scale(scale, scale);
-
-  // 3. Draw the Path
-  const p = new Path2D(pathData);
-  ctx.fillStyle = iconColor;
-  ctx.fill(p);
-
-  return canvas.toDataURL('image/png');
-};
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentTheme, setCurrentTheme] = useState<Theme>(luminaPressTheme);
@@ -54,41 +21,146 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const downloadAppIcon = useCallback(() => {
-    // Generate a high-resolution (1024x1024) icon for download using the Path method
-    const size = 1024;
-    const pngUrl = generateIconFromPath(currentTheme.iconPath, size, currentTheme.colors.primary['500'], '#FFFFFF');
+  /**
+   * Generates a robust SVG Blob URL.
+   * Uses standard SVG transforms to center the 512x512 icon within a 1024x1024 container.
+   */
+  const generateIconBlobUrl = useCallback((theme: Theme): string => {
+    // 1. Define Standard Dimensions
+    const canvasSize = 1024;
+    const iconOriginalSize = 512;
+    const iconScale = 1.0; // Scale relative to original 512px (making it 512px visual size)
     
-    const link = document.createElement('a');
-    link.href = pngUrl;
-    link.download = `${currentTheme.appName.replace(/\s+/g, '-').toLowerCase()}-icon.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }, [currentTheme]);
+    // 2. Calculate Center Position
+    // We want the 512x512 icon to be centered in 1024x1024.
+    // Center of canvas = 512, 512.
+    // Center of icon = 256, 256.
+    // Translate = (CanvasCenter) - (IconCenter * Scale)
+    // Actually simpler with SVG Group transform:
+    // Move to center of canvas (512,512), scale, then move back by half icon size (-256, -256).
+    
+    const svgString = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${canvasSize}" height="${canvasSize}" viewBox="0 0 ${canvasSize} ${canvasSize}">
+        <rect width="100%" height="100%" fill="${theme.colors.primary['500']}"/>
+        <g transform="translate(512, 512) scale(${iconScale}) translate(-256, -256)">
+          <path d="${theme.iconPath}" fill="#FFFFFF"/>
+        </g>
+      </svg>
+    `.trim();
+
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    return URL.createObjectURL(blob);
+  }, []);
+
+  const generatePngFromSvg = useCallback((theme: Theme, callback: (url: string) => void) => {
+    const svgUrl = generateIconBlobUrl(theme);
+    const img = new Image();
+    
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        try {
+           const pngUrl = canvas.toDataURL('image/png');
+           callback(pngUrl);
+        } catch (e) {
+           console.error("Canvas to Data URL failed", e);
+           // Fallback to SVG if PNG fails
+           callback(svgUrl);
+        }
+      }
+      URL.revokeObjectURL(svgUrl);
+    };
+
+    img.onerror = () => {
+        console.error("Failed to load SVG for conversion");
+        callback(svgUrl); // Fallback
+    };
+
+    img.src = svgUrl;
+  }, [generateIconBlobUrl]);
+
+
+  const downloadAppIcon = useCallback(() => {
+    generatePngFromSvg(currentTheme, (url) => {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${currentTheme.appName.replace(/\s+/g, '-').toLowerCase()}-icon.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
+  }, [currentTheme, generatePngFromSvg]);
+
+  const openIconInNewTab = useCallback(() => {
+      generatePngFromSvg(currentTheme, (url) => {
+          const win = window.open();
+          if (win) {
+              win.document.write(`<img src="${url}" style="width:100%; height:auto; max-width: 512px; border: 1px solid #ccc;" />`);
+              win.document.title = "App Icon Preview";
+              win.document.body.style.margin = "0";
+              win.document.body.style.display = "flex";
+              win.document.body.style.justifyContent = "center";
+              win.document.body.style.alignItems = "center";
+              win.document.body.style.height = "100vh";
+              win.document.body.style.backgroundColor = "#f0f0f0";
+          }
+      });
+  }, [currentTheme, generatePngFromSvg]);
+
 
   useEffect(() => {
     // 1. Update Document Title
     document.title = currentTheme.appName;
 
-    const updateIconsAndManifest = () => {
-        const themeColor = currentTheme.colors.primary['500'];
-        const whiteIconColor = '#FFFFFF';
+    // 2. Generate Assets
+    const themeColor = currentTheme.colors.primary['500'];
+    const svgUrl = generateIconBlobUrl(currentTheme);
 
-        // 2. Update Browser Tab Favicon
-        // (Directly use SVG for tab icon as it scales perfectly there)
-        let iconLink = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
-        if (!iconLink) {
-             iconLink = document.createElement('link');
-             iconLink.rel = 'icon';
-             document.head.appendChild(iconLink);
-        }
-        iconLink.href = currentTheme.favicon;
+    // 3. Update Browser Tab Favicon
+    let iconLink = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+    if (!iconLink) {
+            iconLink = document.createElement('link');
+            iconLink.rel = 'icon';
+            document.head.appendChild(iconLink);
+    }
+    iconLink.href = svgUrl;
+    iconLink.type = 'image/svg+xml';
 
-        // 3. Update iOS Home Screen Icon
-        // Use the Path method to reliably generate the PNG
-        const appleIconPng = generateIconFromPath(currentTheme.iconPath, 180, themeColor, whiteIconColor);
-        
+    // 4. Update Theme Color Meta
+    let metaThemeColor = document.querySelector("meta[name='theme-color']") as HTMLMetaElement;
+    if (!metaThemeColor) {
+        metaThemeColor = document.createElement('meta');
+        metaThemeColor.name = 'theme-color';
+        document.head.appendChild(metaThemeColor);
+    }
+    metaThemeColor.content = themeColor;
+
+    // 5. Generate PNGs for Apple/Manifest (Async)
+    const img = new Image();
+    img.src = svgUrl;
+    img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // Helper to generate data URL
+        const generateIcon = (size: number) => {
+            canvas.width = size;
+            canvas.height = size;
+            ctx.clearRect(0, 0, size, size);
+            ctx.drawImage(img, 0, 0, size, size);
+            return canvas.toDataURL('image/png');
+        };
+
+        const icon192 = generateIcon(192);
+        const icon512 = generateIcon(512);
+        const appleIcon = generateIcon(180);
+
+        // Update Apple Touch Icon
         let appleLink = document.getElementById('dynamic-apple-icon') as HTMLLinkElement;
         if (!appleLink) {
             appleLink = document.createElement('link');
@@ -96,22 +168,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             appleLink.rel = 'apple-touch-icon';
             document.head.appendChild(appleLink);
         }
-        appleLink.href = appleIconPng;
+        appleLink.href = appleIcon;
 
-        // 4. Update Theme Color Meta
-        let metaThemeColor = document.querySelector("meta[name='theme-color']") as HTMLMetaElement;
-        if (!metaThemeColor) {
-            metaThemeColor = document.createElement('meta');
-            metaThemeColor.name = 'theme-color';
-            document.head.appendChild(metaThemeColor);
-        }
-        metaThemeColor.content = themeColor;
-
-        // 5. Generate & Update Web App Manifest
-        // Use the Path method for 192 and 512 icons
-        const icon192 = generateIconFromPath(currentTheme.iconPath, 192, themeColor, whiteIconColor);
-        const icon512 = generateIconFromPath(currentTheme.iconPath, 512, themeColor, whiteIconColor);
-
+        // Update Web App Manifest
         const manifest = {
             name: currentTheme.appName,
             short_name: currentTheme.appName,
@@ -121,18 +180,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             theme_color: themeColor,
             description: `Reading experience for ${currentTheme.appName}`,
             icons: [
-                { 
-                    src: icon192, 
-                    sizes: "192x192", 
-                    type: "image/png",
-                    purpose: "any maskable"
-                },
-                { 
-                    src: icon512, 
-                    sizes: "512x512", 
-                    type: "image/png",
-                    purpose: "any maskable"
-                }
+                { src: icon192, sizes: "192x192", type: "image/png", purpose: "any maskable" },
+                { src: icon512, sizes: "512x512", type: "image/png", purpose: "any maskable" }
             ]
         };
 
@@ -155,11 +204,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         manifestLink.href = manifestURL;
     };
 
-    updateIconsAndManifest();
+    // Cleanup main SVG blob when theme changes
+    return () => {
+        URL.revokeObjectURL(svgUrl);
+    };
 
-  }, [currentTheme]);
+  }, [currentTheme, generateIconBlobUrl]);
 
-  const value = useMemo(() => ({ theme: currentTheme, setTheme, downloadAppIcon }), [currentTheme, setTheme, downloadAppIcon]);
+  const value = useMemo(() => ({ theme: currentTheme, setTheme, downloadAppIcon, openIconInNewTab }), [currentTheme, setTheme, downloadAppIcon, openIconInNewTab]);
 
   return (
     <ThemeContext.Provider value={value}>
