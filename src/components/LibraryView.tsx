@@ -8,7 +8,7 @@ import useLocalStorage from '../hooks/useLocalStorage';
 import { themes } from '../themes';
 import AnnouncementPopup from './AnnouncementPopup';
 import NotificationToast from './NotificationToast';
-import { FaShieldAlt, FaCoins, FaBell, FaBellSlash, FaChevronDown, FaDownload, FaExternalLinkAlt } from 'react-icons/fa';
+import { FaShieldAlt, FaCoins, FaBell, FaBellSlash, FaChevronDown, FaDownload } from 'react-icons/fa';
 
 interface LibraryViewProps {
   libraryBooks: Book[];
@@ -33,7 +33,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
   onBookUploaded, 
   onLogout 
 }) => {
-  const { theme, setTheme, downloadAppIcon, openIconInNewTab } = useTheme();
+  const { theme, setTheme, iconUrl } = useTheme();
   const Logo = theme.logo;
 
   const [dismissedAnnouncements, setDismissedAnnouncements] = useLocalStorage<string[]>('dismissed-announcements', []);
@@ -139,25 +139,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({
                     <span className="font-semibold text-gray-700 dark:text-gray-200">Active Users:</span>
                     <span className="font-bold text-primary-600 dark:text-primary-400">42</span>
                   </div>
-                  
-                  <div className="pt-4 border-t border-gray-200 dark:border-gray-600 space-y-3">
-                    <button 
-                        onClick={downloadAppIcon}
-                        className="w-full flex items-center justify-center gap-2 bg-primary-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-primary-700 transition-colors shadow-sm"
-                    >
-                        <FaDownload />
-                        Download App Icon (1024px)
-                    </button>
-                    <button 
-                        onClick={openIconInNewTab}
-                        className="w-full flex items-center justify-center gap-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors shadow-sm"
-                    >
-                        <FaExternalLinkAlt />
-                        Open Icon in New Tab
-                    </button>
-                    <p className="text-xs text-center text-gray-500 mt-2">Downloads the generated PWA icon for verification.</p>
-                  </div>
-
+                  {/* Removed Download buttons as requested */}
                 </div>
              </div>
           </div>
@@ -260,7 +242,12 @@ const LibraryView: React.FC<LibraryViewProps> = ({
       </main>
       
       <footer className="text-center mt-12 py-4 text-gray-500 dark:text-gray-400 text-sm">
-        <p>Created with <i className="fas fa-heart text-red-500"></i> for avid readers.</p>
+        <p className="mb-2">Created with <i className="fas fa-heart text-red-500"></i> for avid readers.</p>
+        {iconUrl && (
+            <a href={iconUrl} download="app-icon.svg" className="inline-flex items-center gap-1 text-xs text-primary-500 hover:text-primary-700 hover:underline">
+               <FaDownload className="text-[10px]" /> Download App Icon
+            </a>
+        )}
       </footer>
     </div>
   );

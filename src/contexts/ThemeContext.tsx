@@ -6,13 +6,14 @@ interface ThemeContextType {
   theme: Theme;
   setTheme: (themeKey: string) => void;
   downloadAppIcon: () => void;
-  openIconInNewTab: () => void;
+  iconUrl: string | null;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentTheme, setCurrentTheme] = useState<Theme>(luminaPressTheme);
+  const [iconUrl, setIconUrl] = useState<string | null>(null);
 
   const setTheme = (themeKey: string) => {
     const newTheme = themes[themeKey];
@@ -22,95 +23,57 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   /**
-   * Generates a robust SVG Blob URL.
-   * Uses standard SVG transforms to center the 512x512 icon within a 1024x1024 container.
+   * Generates a clean, standard SVG string.
+   * Using standard 24x24 grid paths for stability.
    */
-  const generateIconBlobUrl = useCallback((theme: Theme): string => {
-    // 1. Define Standard Dimensions
-    const canvasSize = 1024;
-    const iconOriginalSize = 512;
-    const iconScale = 1.0; // Scale relative to original 512px (making it 512px visual size)
+  const generateIconSvgString = useCallback((theme: Theme): string => {
+    // If the theme has a 24x24 path (BookWise), use appropriate viewbox and padding.
+    // If it's a 512 path (others), handle accordingly.
+    const isMaterialPath = theme.iconPath.length < 1000 && theme.iconPath.includes('M21'); // Simple heuristic for our new path
     
-    // 2. Calculate Center Position
-    // We want the 512x512 icon to be centered in 1024x1024.
-    // Center of canvas = 512, 512.
-    // Center of icon = 256, 256.
-    // Translate = (CanvasCenter) - (IconCenter * Scale)
-    // Actually simpler with SVG Group transform:
-    // Move to center of canvas (512,512), scale, then move back by half icon size (-256, -256).
+    let viewBox = "0 0 512 512";
+    let rectSize = 512;
+    let path = theme.iconPath;
     
-    const svgString = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="${canvasSize}" height="${canvasSize}" viewBox="0 0 ${canvasSize} ${canvasSize}">
-        <rect width="100%" height="100%" fill="${theme.colors.primary['500']}"/>
-        <g transform="translate(512, 512) scale(${iconScale}) translate(-256, -256)">
-          <path d="${theme.iconPath}" fill="#FFFFFF"/>
-        </g>
+    // For the new BookWise theme, we use a 24x24 path inside a padded viewBox
+    if (isMaterialPath) {
+        viewBox = "-6 -6 36 36"; // Adds padding around the 24x24 icon
+        rectSize = 36;
+    }
+
+    const bgColor = theme.colors.primary['500'];
+    const iconColor = "#FFFFFF";
+
+    // We draw a rect covering the viewBox (with rounded corners) and then the path on top.
+    // No complex transforms, just reliable coordinate systems.
+    
+    // Note: For the 512 paths, we assume they are 0-512.
+    // For 24 paths, we assume 0-24.
+    
+    return `
+      <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="${viewBox}">
+        <rect x="${isMaterialPath ? -6 : 0}" y="${isMaterialPath ? -6 : 0}" width="${rectSize}" height="${rectSize}" fill="${bgColor}" rx="${rectSize * 0.2}" ry="${rectSize * 0.2}"/>
+        <path d="${path}" fill="${iconColor}" fill-rule="nonzero" />
       </svg>
     `.trim();
-
-    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-    return URL.createObjectURL(blob);
   }, []);
 
-  const generatePngFromSvg = useCallback((theme: Theme, callback: (url: string) => void) => {
-    const svgUrl = generateIconBlobUrl(theme);
-    const img = new Image();
-    
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 1024;
-      canvas.height = 1024;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(img, 0, 0);
-        try {
-           const pngUrl = canvas.toDataURL('image/png');
-           callback(pngUrl);
-        } catch (e) {
-           console.error("Canvas to Data URL failed", e);
-           // Fallback to SVG if PNG fails
-           callback(svgUrl);
-        }
-      }
-      URL.revokeObjectURL(svgUrl);
-    };
-
-    img.onerror = () => {
-        console.error("Failed to load SVG for conversion");
-        callback(svgUrl); // Fallback
-    };
-
-    img.src = svgUrl;
-  }, [generateIconBlobUrl]);
-
+  const generateIconBlobUrl = useCallback((theme: Theme): string => {
+    const svgString = generateIconSvgString(theme);
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    return URL.createObjectURL(blob);
+  }, [generateIconSvgString]);
 
   const downloadAppIcon = useCallback(() => {
-    generatePngFromSvg(currentTheme, (url) => {
+    if (iconUrl) {
         const link = document.createElement('a');
-        link.href = url;
+        link.href = iconUrl;
         link.download = `${currentTheme.appName.replace(/\s+/g, '-').toLowerCase()}-icon.png`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-    });
-  }, [currentTheme, generatePngFromSvg]);
-
-  const openIconInNewTab = useCallback(() => {
-      generatePngFromSvg(currentTheme, (url) => {
-          const win = window.open();
-          if (win) {
-              win.document.write(`<img src="${url}" style="width:100%; height:auto; max-width: 512px; border: 1px solid #ccc;" />`);
-              win.document.title = "App Icon Preview";
-              win.document.body.style.margin = "0";
-              win.document.body.style.display = "flex";
-              win.document.body.style.justifyContent = "center";
-              win.document.body.style.alignItems = "center";
-              win.document.body.style.height = "100vh";
-              win.document.body.style.backgroundColor = "#f0f0f0";
-          }
-      });
-  }, [currentTheme, generatePngFromSvg]);
-
+    }
+  }, [iconUrl, currentTheme]);
 
   useEffect(() => {
     // 1. Update Document Title
@@ -119,6 +82,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // 2. Generate Assets
     const themeColor = currentTheme.colors.primary['500'];
     const svgUrl = generateIconBlobUrl(currentTheme);
+    setIconUrl(svgUrl);
 
     // 3. Update Browser Tab Favicon
     let iconLink = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
@@ -147,7 +111,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Helper to generate data URL
         const generateIcon = (size: number) => {
             canvas.width = size;
             canvas.height = size;
@@ -197,21 +160,19 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             document.head.appendChild(manifestLink);
         }
         
-        // Clean up previous blob
         if (manifestLink.href && manifestLink.href.startsWith('blob:')) {
             URL.revokeObjectURL(manifestLink.href);
         }
         manifestLink.href = manifestURL;
     };
 
-    // Cleanup main SVG blob when theme changes
     return () => {
         URL.revokeObjectURL(svgUrl);
     };
 
   }, [currentTheme, generateIconBlobUrl]);
 
-  const value = useMemo(() => ({ theme: currentTheme, setTheme, downloadAppIcon, openIconInNewTab }), [currentTheme, setTheme, downloadAppIcon, openIconInNewTab]);
+  const value = useMemo(() => ({ theme: currentTheme, setTheme, downloadAppIcon, iconUrl }), [currentTheme, setTheme, downloadAppIcon, iconUrl]);
 
   return (
     <ThemeContext.Provider value={value}>
