@@ -1,13 +1,13 @@
 
 import React from 'react';
-import { FaLightbulb, FaFeatherAlt, FaSun } from 'react-icons/fa';
+import { FaLightbulb, FaFeatherAlt, FaSun, FaBookOpen } from 'react-icons/fa';
 
 export interface Theme {
   key: string;
   appName: string;
   logo: React.ElementType;
   favicon: string; // Keep for browser tab
-  iconPath: string; // New: Raw SVG path data for reliable canvas drawing
+  iconPath: string; // New: Raw SVG path data for reliable canvas drawing. Assumes standard 0 0 512 512 FontAwesome viewbox.
   colors: {
     primary: {
       '50': string; '100': string; '200': string; '300': string; '400': string; '500': string; '600': string; '700': string; '800': string; '900': string; '950': string;
@@ -20,13 +20,13 @@ export interface Theme {
 
 export const luminaPressTheme: Theme = {
   key: 'lumina',
-  appName: 'Lumina Press',
-  logo: FaLightbulb,
-  favicon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' fill='%23f59e0b'%3E%3Cpath d='M256 32C167.67 32 96 96.51 96 176c0 128 160 144 160 224v48c0 26.51 21.49 48 48 48h64c26.51 0 48-21.49 48-48v-48c0-80 160-96 160-224 0-79.49-71.67-144-160-144zm80 256c-64 0-64-16-64-16v-16h128v16c0 16 0 16-64 16zm-16-64h-96c-16 0-16-16-16-16s16-16 16-16h96c16 0 16 16 16 16s-16 16-16 16z'/%3E%3C/svg%3E",
-  iconPath: "M256 32C167.67 32 96 96.51 96 176c0 128 160 144 160 224v48c0 26.51 21.49 48 48 48h64c26.51 0 48-21.49 48-48v-48c0-80 160-96 160-224 0-79.49-71.67-144-160-144zm80 256c-64 0-64-16-64-16v-16h128v16c0 16 0 16-64 16zm-16-64h-96c-16 0-16-16-16-16s16-16 16-16h96c16 0 16 16 16 16s-16 16-16 16z",
+  appName: 'BookWise',
+  logo: FaBookOpen,
+  favicon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' fill='%234f46e5'%3E%3Cpath d='M261.9 107.9c-10-14.8-29.6-14.8-39.6 0l-12.2 18.2c-5.8 8.6-17.6 11.2-26.6 5.8C162.9 120.2 135.2 112 104 112c-63.3 0-104 29.8-104 71.8v224c0 14.5 13.3 25.1 27.5 21.9 39.5-8.8 80.2-2.9 116.8 17.1 5.3 2.9 11.8 2.4 16.5-1.4l55.2-44.1c11.9-9.5 28.1-9.5 40 0l55.2 44.1c4.8 3.8 11.2 4.3 16.5 1.4 36.6-20 77.3-25.9 116.8-17.1 14.2 3.2 27.5-7.4 27.5-21.9v-224c0-41.9-40.7-71.8-104-71.8-31.2 0-58.9 8.2-79.5 19.9-9 5.4-20.8 2.8-26.6-5.8l-12.2-18.2z'/%3E%3C/svg%3E",
+  iconPath: "M261.9 107.9c-10-14.8-29.6-14.8-39.6 0l-12.2 18.2c-5.8 8.6-17.6 11.2-26.6 5.8C162.9 120.2 135.2 112 104 112c-63.3 0-104 29.8-104 71.8v224c0 14.5 13.3 25.1 27.5 21.9 39.5-8.8 80.2-2.9 116.8 17.1 5.3 2.9 11.8 2.4 16.5-1.4l55.2-44.1c11.9-9.5 28.1-9.5 40 0l55.2 44.1c4.8 3.8 11.2 4.3 16.5 1.4 36.6-20 77.3-25.9 116.8-17.1 14.2 3.2 27.5-7.4 27.5-21.9v-224c0-41.9-40.7-71.8-104-71.8-31.2 0-58.9 8.2-79.5 19.9-9 5.4-20.8 2.8-26.6-5.8l-12.2-18.2z",
   colors: {
     primary: {
-      '50': '#fffbeb', '100': '#fef3c7', '200': '#fde68a', '300': '#fcd34d', '400': '#fbbf24', '500': '#f59e0b', '600': '#d97706', '700': '#b45309', '800': '#92400e', '900': '#78350f', '950': '#451a03'
+      '50': '#eef2ff', '100': '#e0e7ff', '200': '#c7d2fe', '300': '#a5b4fc', '400': '#818cf8', '500': '#6366f1', '600': '#4f46e5', '700': '#4338ca', '800': '#3730a3', '900': '#312e81', '950': '#1e1b4b'
     },
     secondary: {
       '50': '#f8fafc', '100': '#f1f5f9', '200': '#e2e8f0', '300': '#cbd5e1', '400': '#94a3b8', '500': '#64748b', '600': '#475569', '700': '#334155', '800': '#1e293b', '900': '#0f172a', '950': '#020617'
