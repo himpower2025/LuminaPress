@@ -18,15 +18,15 @@ export interface Theme {
   };
 }
 
-// High-fidelity 'Open Book' path (512x512 basis).
-// This path captures the curvature of pages and the spine, looking like a "real book".
-const detailedBookPath = "M261.9 107.9c-10-14.8-29.6-14.8-39.6 0l-12.2 18.2c-5.8 8.6-17.6 11.2-26.6 5.8C162.9 120.2 135.2 112 104 112c-63.3 0-104 29.8-104 71.8v224c0 14.5 13.3 25.1 27.5 21.9 39.5-8.8 80.2-2.9 116.8 17.1 5.3 2.9 11.8 2.4 16.5-1.4l55.2-44.1c11.9-9.5 28.1-9.5 40 0l55.2 44.1c4.8 3.8 11.2 4.3 16.5 1.4 36.6-20 77.3-25.9 116.8-17.1 14.2 3.2 27.5-7.4 27.5-21.9v-224c0-41.9-40.7-71.8-104-71.8-31.2 0-58.9 8.2-79.5 19.9-9 5.4-20.8 2.8-26.6-5.8l-12.2-18.2z";
+// Sophisticated 'Menu Book' path (Material Design based, 24x24 basis).
+// This path features elegant curves for pages and a distinct spine, avoiding the 'fat' look.
+const detailedBookPath = "M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.41.21.75-.19.75-.45V6c-1.49-1.12-3.63-1.5-5.5-1.5zM21 18.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z";
 
 export const luminaPressTheme: Theme = {
   key: 'lumina',
   appName: 'BookWise',
   logo: FaBookOpen,
-  favicon: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' fill='%234f46e5'%3E%3Cpath d='${detailedBookPath}'/%3E%3C/svg%3E`,
+  favicon: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234f46e5'%3E%3Cpath fill-rule='evenodd' d='${detailedBookPath}'/%3E%3C/svg%3E`,
   iconPath: detailedBookPath,
   colors: {
     primary: {

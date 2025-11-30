@@ -24,16 +24,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   /**
    * Generates a clean, standard SVG string.
-   * Optimized for standard icon paths (approx 512x512).
+   * Optimized for standard icon paths (now 24x24 basis for cleaner lines).
    */
   const generateIconSvgString = useCallback((theme: Theme): string => {
-    // We use a viewBox slightly larger than 512 to provide comfortable padding.
-    // -32 -32 576 576 provides ~32px padding on all sides relative to a 512px path.
-    const viewBox = "-32 -32 576 576";
+    // 24x24 basis (Material Design standard) provides cleaner, less "fat" strokes.
+    // Padding: -4 offset with 32 width creates a comfortable margin around the 24px icon.
+    // 24 icon + 4 padding each side = 32 total viewbox dimension.
+    const viewBox = "-4 -4 32 32";
+    
     // The background rect covers this entire padded area.
-    const rectX = -32;
-    const rectY = -32;
-    const rectSize = 576;
+    const rectX = -4;
+    const rectY = -4;
+    const rectSize = 32;
     
     const path = theme.iconPath;
     const bgColor = theme.colors.primary['500'];
@@ -43,7 +45,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return `
       <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="${viewBox}">
         <rect x="${rectX}" y="${rectY}" width="${rectSize}" height="${rectSize}" fill="${bgColor}" rx="${rectSize * 0.22}" ry="${rectSize * 0.22}"/>
-        <path d="${path}" fill="${iconColor}" />
+        <path d="${path}" fill="${iconColor}" fill-rule="evenodd" />
       </svg>
     `.trim();
   }, []);
