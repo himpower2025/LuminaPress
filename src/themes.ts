@@ -18,15 +18,15 @@ export interface Theme {
   };
 }
 
-// Refined "Menu Book" path. 
-// This path uses negative space to create thinner, more elegant lines, avoiding the "fat" look.
-const refinedBookPath = "M21 5c-2.64 0-4.78.7-6.51 1.74C13.2 7.55 12.6 8.06 12 8.06s-1.2-.5-2.49-1.32C7.78 5.7 5.64 5 3 5c-.55 0-1 .45-1 1v12c0 .55.45 1 1 1 2.64 0 4.78.7 6.51 1.74 1.29.82 1.89 1.32 2.49 1.32s1.2-.5 2.49-1.32C16.22 18.7 18.36 18 21 18c.55 0 1-.45 1-1V6c0-.55-.45-1-1-1zm-2 11c-1.66 0-3-.45-4-1v-9c1 .55 2.34 1 4 1v9zm-8-10v9c-1 .55-2.34 1-4 1v-9c1.66 0 3-.45 4-1z";
+// Refined "Open Book" path with distinct page definition (24x24 grid).
+// Uses 'evenodd' fill rule to punch out the page shapes.
+const refinedBookPath = "M12 4.5c5 0 8.5 2 8.5 2v12.5c0 .6-.4 1-.9 1-.5 0-.9-.4-.9-1 0 0-2.5-1.5-6.7-1.5C7.5 17.5 5 19 5 19c-.5 0-.9-.4-.9-1 0-.6.4-1 .9-1V6.5s3.5-2 8.5-2z M6 8.5s2.5-1 5-1v9s-2.5 1-5 2V8.5z M13 7.5c2.5 0 5 1 5 1v10s-2.5-1-5-2V7.5z";
 
 export const luminaPressTheme: Theme = {
   key: 'lumina',
   appName: 'BookWise',
   logo: FaBookOpen,
-  favicon: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234f46e5'%3E%3Cpath d='${refinedBookPath}'/%3E%3C/svg%3E`,
+  favicon: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234f46e5' fill-rule='evenodd'%3E%3Cpath d='${refinedBookPath}'/%3E%3C/svg%3E`,
   iconPath: refinedBookPath,
   colors: {
     primary: {
