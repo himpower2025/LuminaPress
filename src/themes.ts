@@ -18,14 +18,15 @@ export interface Theme {
   };
 }
 
-// Refined "Open Book" path with page details, centered on 24x24 grid.
-const refinedBookPath = "M12 3c-1.85 0-3.68.5-5.5 1.5C4.68 5.5 3.3 6.9 2.5 8.5V19c0 .3.2.5.5.5.1 0 .15-.05.2-.1 1-.9 2.1-1.6 3.3-1.9 1.7-.4 3.4-.4 5 .05l.5.15.5-.15c1.6-.45 3.3-.45 5-.05 1.2.3 2.3 1 3.3 1.9.05.05.1.1.2.1.3 0 .5-.2.5-.5V8.5c-.8-1.6-2.18-3-4-4C15.68 3.5 13.85 3 12 3zm-1 12.5c-1.4-.4-2.9-.4-4.5.05-.7.2-1.4.4-2 .7V9.6c.6-.4 1.3-.7 2-1.1 1.6-.8 3.1-1 4.5-.7v7.7zm7.5.7c-.6-.3-1.3-.5-2-.7-1.6-.45-3.1-.45-4.5-.05V7.8c1.4-.3 2.9-.1 4.5.7.7.4 1.4.7 2 1.1v6.6z";
+// Refined "Menu Book" path. 
+// This path uses negative space to create thinner, more elegant lines, avoiding the "fat" look.
+const refinedBookPath = "M21 5c-2.64 0-4.78.7-6.51 1.74C13.2 7.55 12.6 8.06 12 8.06s-1.2-.5-2.49-1.32C7.78 5.7 5.64 5 3 5c-.55 0-1 .45-1 1v12c0 .55.45 1 1 1 2.64 0 4.78.7 6.51 1.74 1.29.82 1.89 1.32 2.49 1.32s1.2-.5 2.49-1.32C16.22 18.7 18.36 18 21 18c.55 0 1-.45 1-1V6c0-.55-.45-1-1-1zm-2 11c-1.66 0-3-.45-4-1v-9c1 .55 2.34 1 4 1v9zm-8-10v9c-1 .55-2.34 1-4 1v-9c1.66 0 3-.45 4-1z";
 
 export const luminaPressTheme: Theme = {
   key: 'lumina',
   appName: 'BookWise',
   logo: FaBookOpen,
-  favicon: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234f46e5'%3E%3Cpath fill-rule='evenodd' d='${refinedBookPath}'/%3E%3C/svg%3E`,
+  favicon: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234f46e5'%3E%3Cpath d='${refinedBookPath}'/%3E%3C/svg%3E`,
   iconPath: refinedBookPath,
   colors: {
     primary: {

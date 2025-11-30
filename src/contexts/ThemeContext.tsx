@@ -29,17 +29,21 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const generateIconSvgString = useCallback((theme: Theme): string => {
     // If the theme has a 24x24 path (BookWise), use appropriate viewbox and padding.
     // If it's a 512 path (others), handle accordingly.
-    const isMaterialPath = theme.iconPath.length < 1000 && theme.iconPath.includes('M12'); // Simple heuristic for our new path
+    const isMaterialPath = theme.iconPath.length < 1000 && theme.iconPath.includes('M21'); // Check for the new path signature
     
     let viewBox = "0 0 512 512";
     let rectSize = 512;
+    let rectX = 0;
+    let rectY = 0;
     let path = theme.iconPath;
     
-    // For the new BookWise theme, we use a 24x24 path inside a padded viewBox
+    // For the BookWise theme (standard 24x24 path), we want "sophisticated padding".
+    // A 24x24 icon centered in a 32x32 viewbox gives nice margins.
     if (isMaterialPath) {
-        // Zoom in: Reduced padding from -6 to -3 for a 30x30 viewbox (24px icon + 3px margin each side)
-        viewBox = "-3 -3 30 30"; 
-        rectSize = 30;
+        viewBox = "-4 -4 32 32"; 
+        rectSize = 32;
+        rectX = -4;
+        rectY = -4;
     }
 
     const bgColor = theme.colors.primary['500'];
@@ -47,12 +51,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // We draw a rect covering the viewBox (with rounded corners) and then the path on top.
     // No complex transforms, just reliable coordinate systems.
-    // Added fill-rule="evenodd" to correct complex path rendering.
     
     return `
       <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="${viewBox}">
-        <rect x="${isMaterialPath ? -3 : 0}" y="${isMaterialPath ? -3 : 0}" width="${rectSize}" height="${rectSize}" fill="${bgColor}" rx="${rectSize * 0.2}" ry="${rectSize * 0.2}"/>
-        <path d="${path}" fill="${iconColor}" fill-rule="evenodd" />
+        <rect x="${rectX}" y="${rectY}" width="${rectSize}" height="${rectSize}" fill="${bgColor}" rx="${rectSize * 0.2}" ry="${rectSize * 0.2}"/>
+        <path d="${path}" fill="${iconColor}" />
       </svg>
     `.trim();
   }, []);
