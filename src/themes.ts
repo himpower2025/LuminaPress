@@ -18,16 +18,16 @@ export interface Theme {
   };
 }
 
-// Refined "Open Book" path with distinct page definition (24x24 grid).
-// Uses 'evenodd' fill rule to punch out the page shapes.
-const refinedBookPath = "M12 4.5c5 0 8.5 2 8.5 2v12.5c0 .6-.4 1-.9 1-.5 0-.9-.4-.9-1 0 0-2.5-1.5-6.7-1.5C7.5 17.5 5 19 5 19c-.5 0-.9-.4-.9-1 0-.6.4-1 .9-1V6.5s3.5-2 8.5-2z M6 8.5s2.5-1 5-1v9s-2.5 1-5 2V8.5z M13 7.5c2.5 0 5 1 5 1v10s-2.5-1-5-2V7.5z";
+// High-fidelity 'Open Book' path (512x512 basis).
+// This path captures the curvature of pages and the spine, looking like a "real book".
+const detailedBookPath = "M261.9 107.9c-10-14.8-29.6-14.8-39.6 0l-12.2 18.2c-5.8 8.6-17.6 11.2-26.6 5.8C162.9 120.2 135.2 112 104 112c-63.3 0-104 29.8-104 71.8v224c0 14.5 13.3 25.1 27.5 21.9 39.5-8.8 80.2-2.9 116.8 17.1 5.3 2.9 11.8 2.4 16.5-1.4l55.2-44.1c11.9-9.5 28.1-9.5 40 0l55.2 44.1c4.8 3.8 11.2 4.3 16.5 1.4 36.6-20 77.3-25.9 116.8-17.1 14.2 3.2 27.5-7.4 27.5-21.9v-224c0-41.9-40.7-71.8-104-71.8-31.2 0-58.9 8.2-79.5 19.9-9 5.4-20.8 2.8-26.6-5.8l-12.2-18.2z";
 
 export const luminaPressTheme: Theme = {
   key: 'lumina',
   appName: 'BookWise',
   logo: FaBookOpen,
-  favicon: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234f46e5' fill-rule='evenodd'%3E%3Cpath d='${refinedBookPath}'/%3E%3C/svg%3E`,
-  iconPath: refinedBookPath,
+  favicon: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' fill='%234f46e5'%3E%3Cpath d='${detailedBookPath}'/%3E%3C/svg%3E`,
+  iconPath: detailedBookPath,
   colors: {
     primary: {
       '50': '#eef2ff', '100': '#e0e7ff', '200': '#c7d2fe', '300': '#a5b4fc', '400': '#818cf8', '500': '#6366f1', '600': '#4f46e5', '700': '#4338ca', '800': '#3730a3', '900': '#312e81', '950': '#1e1b4b'

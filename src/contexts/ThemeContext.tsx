@@ -24,37 +24,26 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   /**
    * Generates a clean, standard SVG string.
-   * Using standard 24x24 grid paths for stability.
+   * Optimized for standard icon paths (approx 512x512).
    */
   const generateIconSvgString = useCallback((theme: Theme): string => {
-    // Check if the path is a short 24x24 path (standard icon) vs a complex 512 path.
-    // 24x24 paths are typically short (< 1000 chars)
-    const isStandardIconPath = theme.iconPath.length < 1000;
+    // We use a viewBox slightly larger than 512 to provide comfortable padding.
+    // -32 -32 576 576 provides ~32px padding on all sides relative to a 512px path.
+    const viewBox = "-32 -32 576 576";
+    // The background rect covers this entire padded area.
+    const rectX = -32;
+    const rectY = -32;
+    const rectSize = 576;
     
-    let viewBox = "0 0 512 512";
-    let rectSize = 512;
-    let rectX = 0;
-    let rectY = 0;
-    let path = theme.iconPath;
-    
-    // For standard 24x24 icons (like BookWise), we use sophisticated padding.
-    // A 24x24 icon centered in a 32x32 viewbox gives elegant margins and prevents the "fat" look.
-    if (isStandardIconPath) {
-        viewBox = "-4 -4 32 32"; 
-        rectSize = 32;
-        rectX = -4;
-        rectY = -4;
-    }
-
+    const path = theme.iconPath;
     const bgColor = theme.colors.primary['500'];
     const iconColor = "#FFFFFF";
 
-    // We draw a rect covering the viewBox (with rounded corners) and then the path on top.
-    // fill-rule="evenodd" is critical for refined icons to punch out "holes" (like lines on a page) correctly.
+    // Rounded corners: approx 22% of size is standard for iOS/Android adaptive icons.
     return `
       <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="${viewBox}">
         <rect x="${rectX}" y="${rectY}" width="${rectSize}" height="${rectSize}" fill="${bgColor}" rx="${rectSize * 0.22}" ry="${rectSize * 0.22}"/>
-        <path d="${path}" fill="${iconColor}" fill-rule="evenodd" />
+        <path d="${path}" fill="${iconColor}" />
       </svg>
     `.trim();
   }, []);
