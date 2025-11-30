@@ -18,15 +18,15 @@ export interface Theme {
   };
 }
 
-// Using Material Design "Menu Book" path for standard 24x24 grid to avoid transform errors
-const materialBookPath = "M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.41.21.75-.19.75-.45V6c-1.49-1.12-3.63-1.5-5.5-1.5zM21 18.5c-1.1-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5V7.5c1.45-1.1 3.55-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11zM11 18.5c-1.45-1.1-3.55-1.5-5.5-1.5S2.45 17.4 1 18.5V7.5c1.45-1.1 3.55-1.5 5.5-1.5S10 6.4 11 7.5v11z";
+// Refined "Open Book" path with page details, centered on 24x24 grid.
+const refinedBookPath = "M12 3c-1.85 0-3.68.5-5.5 1.5C4.68 5.5 3.3 6.9 2.5 8.5V19c0 .3.2.5.5.5.1 0 .15-.05.2-.1 1-.9 2.1-1.6 3.3-1.9 1.7-.4 3.4-.4 5 .05l.5.15.5-.15c1.6-.45 3.3-.45 5-.05 1.2.3 2.3 1 3.3 1.9.05.05.1.1.2.1.3 0 .5-.2.5-.5V8.5c-.8-1.6-2.18-3-4-4C15.68 3.5 13.85 3 12 3zm-1 12.5c-1.4-.4-2.9-.4-4.5.05-.7.2-1.4.4-2 .7V9.6c.6-.4 1.3-.7 2-1.1 1.6-.8 3.1-1 4.5-.7v7.7zm7.5.7c-.6-.3-1.3-.5-2-.7-1.6-.45-3.1-.45-4.5-.05V7.8c1.4-.3 2.9-.1 4.5.7.7.4 1.4.7 2 1.1v6.6z";
 
 export const luminaPressTheme: Theme = {
   key: 'lumina',
   appName: 'BookWise',
   logo: FaBookOpen,
-  favicon: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234f46e5'%3E%3Cpath d='${materialBookPath}'/%3E%3C/svg%3E`,
-  iconPath: materialBookPath,
+  favicon: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234f46e5'%3E%3Cpath fill-rule='evenodd' d='${refinedBookPath}'/%3E%3C/svg%3E`,
+  iconPath: refinedBookPath,
   colors: {
     primary: {
       '50': '#eef2ff', '100': '#e0e7ff', '200': '#c7d2fe', '300': '#a5b4fc', '400': '#818cf8', '500': '#6366f1', '600': '#4f46e5', '700': '#4338ca', '800': '#3730a3', '900': '#312e81', '950': '#1e1b4b'
